@@ -28,6 +28,22 @@ Check that your `eslintrc.js` is valid by running it:
 yarn eslint ./src/file.ts
 ```
 
+List all the rules applied to a specific file:
+```bash
+yarn eslint --print-config ./src/index.ts
+```
+(Different files can have different configs applied to them thanks to the `overrides` config property.)
+
+Show all eslint problems
+```bash
+yarn eslint .
+```
+Fix all eslint problems
+```bash
+yarn eslint . --fix
+```
+
+
 ### eslint:recommended https://github.com/eslint/eslint/blob/main/conf/eslint-recommended.js
 
 ```
@@ -165,7 +181,12 @@ Settings
 
 Restart eslint server
 ```
-CMD + SHIFT + P: Restart eslint server
+CMD + SHIFT + P: Eslint Restart eslint server
+```
+
+Show output of running eslint server
+```
+CMD + SHIFT + P: Eslint Show output channel
 ```
 
 
