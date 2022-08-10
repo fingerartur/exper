@@ -159,7 +159,17 @@ sidebar_position: 3
     git fetch --tags;
 ```
 
-# Integration w vscode
+## Git hooks
+Actions such as commit, pull, push, etc. can have pre- and post- hooks executed before and after.
+
+**pre-[action]** should be an executable (e.g. bash or node script with a shebang). If the executable
+returns a non-zero exit code, the action is stopped.
+
+- e.g. pre-push hook that runs build + lint + tests
+
+https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks#_git_hooks
+
+## Integration w vscode
 - plugins
   - git graph
   - gitk (file history)
@@ -171,7 +181,7 @@ vscode git.autofetch: true
 
 * If you commit sensitive data by mistake, you can remove it from the whole git history using https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository
 
-## TODO space :)
+## TODO - future learning
 
 * 🎃 TODO ssh needs pub/priv keys (Http vs ssl (password vs not))
 * 🎃 TODO presets (upstream, origin)
