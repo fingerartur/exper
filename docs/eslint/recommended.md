@@ -1,56 +1,20 @@
 ---
-sidebar_position: 1.3
+sidebar_position: 1.1
 ---
 
-# Eslint
-
-Should I use Eslint or not? If you're working on a solo project, nobody cares. If you're working on a team project,
-configure Eslint as soon as possible and avoid a world of pain. If you want your project to be big and successful,
-it **will** become a team effort, trust me, ...configure the damn Eslint.
-
-## Choose your rules
-
-People will endlessly fight about Eslint rules, yet nobody seems to have a rule pack in his pocket ready to use.
-
-That's why I created **[@finga/eslint-config](https://github.com/fingerartur/eslint-config)**.
-
-
-:::note
-Why alternatives such as AirBnb, Facebook, Google, Github were not good enough? I had a quick look and basically they
-do not look like something you can use out of the box. Either they are not strict enough or it has a very complicated
-setup, or there is no setup at all.
-:::
-
-## Make sure everything works as it should
-
-**Check that your `eslintrc.js` is valid** by linting a random file. If the config is invalid, you will see errors.
-```bash
-yarn eslint ./src/file.ts
-```
-
-**Show all** eslint problems
-```bash
-yarn eslint .
-```
-
-**Fix all** eslint problems
-```bash
-yarn eslint . --fix
-```
-
-### Debug
-
-List all the rules applied to a specific file. (Different files can have different configs applied to them thanks to the `overrides` config property.):
-```bash
-yarn eslint --print-config ./src/index.ts
-```
-
-## About recommended rule packs
+# Recommended rules
 There are a few recommended rule packs, such as `eslint:recommended`, `plugin:@typescript-eslint/recommended`, that everybody should use, bla bla bla. But what the hell do they actually do?
-So here a did a bit of reverse-engineering to find out
+
+I did a bit of reverse-engineering to find out...
 
 
-### eslint:recommended
+## eslint:recommended
+These rules first of all protect you from writing complete bullshit, such as multiple semi colons, trying to call an object, trying
+to assign to a function, using undeclared variables, having duplicated keys in an object. Second, they some pretty useful rules, such as making sure you do not forget to return a value form a getter, call super() in a constructor that inherits, or you do not use a number so big that javascript cannot work with it and it loses precision.
+
+All in all it is a **very useful pack of rules 👍.**
+
+Some of them are debatable, you may want to allow them: `no-empty`, `no-unused-vars`, `no-useless-catch`.
 
 Dynamic source https://github.com/eslint/eslint/blob/main/conf/eslint-recommended.js
 
@@ -123,6 +87,11 @@ Rules applied:
 
 ## plugin:@typescript-eslint/recommended
 
+This set of light-weight TS rules, which are fast to run, and it is pretty small. First it takes some rules from `eslint:recommended` and modifies them to work better with TS.
+Second, it prevents your from creating empty interfaces, prevents turning TS off using directives such as `@ts-ignore` and `@ts-nocheck`, prevents non-null assertion such as `obj!.attribute`, and prevents the use of `any` type [(`unknown` should be used instead)](https://stackoverflow.com/questions/51439843/unknown-vs-any).
+
+All in all it is a **very useful pack of rules 👍**, even though it is pretty small.
+
 Dynamic source https://github.com/typescript-eslint/typescript-eslint/blob/main/packages/eslint-plugin/src/configs/recommended.ts
 
 Rules applied:
@@ -158,7 +127,15 @@ Rules applied:
 }
 ```
 
-### plugin:@typescript-eslint/recommended-requiring-type-checking
+## plugin:@typescript-eslint/recommended-requiring-type-checking
+
+This is a set of more complex TS rule, which take longer to run. *(If you run it on the whole codebase at once it may take some time, if you run it on a single file at a time, they are very fast, don't worry.)*
+
+These rules protect not against creating `any` type but against using any-typed variable (e.g. when it comes from some lib and "leaks" into your code), it protects against adding up differently typed vars such as string + number, makes sure you interpolate string only with string values, etc.
+
+All in all it is a **very useful pack of rules 👍**, even though it is pretty small.
+
+Some rules are debatable, such as `no-floating-promises`, sometimes you want to create a promise and catch it's errors in a different file.
 
 Dynamic source: https://github.com/typescript-eslint/typescript-eslint/blob/main/packages/eslint-plugin/src/configs/recommended-requiring-type-checking.ts
 
@@ -185,47 +162,8 @@ Rules applied:
 }
 ```
 
-## How to create a shareable eslint-config plugin
-
-https://eslint.org/docs/latest/developer-guide/shareable-configs
-
-
-## Eslint with Vscode
-
-Vscode has a [plugin](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint). Configure it to trigger auto-fixing every time you save a file.
-
-Settings:
-```json
-{
-    "editor.codeActionsOnSave": {
-        "source.fixAll.eslint": true,
-    },
-}
-```
-
-Here are a few important commands for this plugin:
-
-**Restart eslint server**
-Do this whenever you change Eslint config.
-
-```
-CMD + SHIFT + P: Eslint Restart eslint server
-```
-
-**Show output of running eslint server**
-Do this whenever you change Eslint config.
-```
-CMD + SHIFT + P: Eslint Show output channel
-```
-
-*This plugin takes eslint executable from the local ./node_modules so don't worry it runs the same version as your CLI.*
-
-## Git hooks with eslint
-And create a git pre-push hook to check for lint errors and make sure you never push un-linted code.
-
-
-
-## TODO
+## Future reading
+- https://github.com/selaux/eslint-plugin-filenames
 - https://github.com/jest-community/eslint-plugin-jest
 - https://github.com/cypress-io/eslint-plugin-cypress
-- https://github.com/selaux/eslint-plugin-filenames
+- https://www.npmjs.com/package/eslint-plugin-react
