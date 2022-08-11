@@ -1,8 +1,8 @@
 ---
-sidebar_position: 1.3
+sidebar_position: 2.1
 ---
 
-# Eslint
+# Eslint 🎖️
 
 Should I use Eslint or not? If you're working on a solo project, nobody cares. If you're working on a team project,
 configure Eslint as soon as possible and avoid a world of pain. If you want your project to be big and successful,
