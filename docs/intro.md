@@ -2,6 +2,9 @@
 sidebar_position: 1
 ---
 
-# Exper
+# Intro
 
-Key takeaways about FE software engineering, techs and hacks and expertise.
+Expertise.
+Key takeaways about FE software engineering, techs and hacks.
+
+* [git](./git)

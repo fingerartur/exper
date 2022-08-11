@@ -1,8 +1,10 @@
 ---
-sidebar_position: 3
+sidebar_position: 2
 ---
 
-# Git 2.17 🎖️🎖️
+# Git 🎖️🎖️
+
+Git version 2.17.
 
 ```bash
     # Avoid git asking you for HTTPs authentication credentials on each push/pull
