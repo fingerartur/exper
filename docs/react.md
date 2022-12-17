@@ -3,9 +3,7 @@ sidebar_position: 4
 ---
 
 
-# React 17 🎖️
-
-## Hooks
+## React 17 🎖️ - hooks
 
 * why: because it is a better way of reacting to prop changes than lifecycle methods. All `effect` logic is in one place. Can be reused, composed, tested
   * all logic in a separate hook
@@ -25,6 +23,17 @@ sidebar_position: 4
         maybe to render a scroll arrow ... if I don't use useLayoutEffect, there will be 2x browser paint and a visual glitch
 * `React.memo()` - always use
 * `useState(default)` - changing default does NOTHING
+* `useImperativeHandle()` and `useRef()` - to create your own ref (anything not just DOM element), and useRef to capture it in parent and control it. Use as little as possible
+
+## React 18 - hooks
+* `useDeferredValue()` - updates value only after all React work has been done. Great for text input, you type input fast, send it to defer, and only then use it. It's like free throttling.
+* `useTransition()` - similar to `useDeferredValue` but i can wrap any code in `transition` it does not only work with state, so it is better than `useDeferredValue`. It also indicates `pending` state. Perfect! It's like an awesome throttling.
+```js
+const [pending, transition] = useTransition()`
+```
+* `useId` - unique id ... but why? :D
+* `useInsertionEffect` - insert css to dom before any dom rendering. Do not use, intended for library authors
+* `useReducer` - like use state with complicated update logic or one that depends on previous state or states. This is great e.g. for a counter, 2d movement etc. It resembles a tiny local redux store.
 
 ### Implementation details
 
