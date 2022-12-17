@@ -2,40 +2,101 @@
 sidebar_position: 5
 ---
 
-# MOBX 5.15
-- observable
-- attribute @observable - object, arrays, class instances, primitives
-- var numbers = observable([1, 2, 3])
-- mobx creates an enhanced copy of the attribute/array/Object
-- toJS() in order to convert back to pure JS and e.g. log to console
--  TODO is it a JS proxy?
-- @computed - function, getter. Should be called lazily (only when im listening to it)
-- Observing
-- const Todo = observer(({ todo }) => (<h1>{todo}</h1>), @observer class TodoListView extends Component {
-- import { observer } from "mobx-react"
-- probably via HOC + forceUpdate
-- observables that are accessible to the component, but not actually read, won't ever cause a re-render.
-- autorun
-- autorun(() => {console.log()}
-- const disposer = autorun(reactFunction)
-- autorun(() => {}, { delay: 300}) // delay is throttling ;)
-- onError ... TODO isnt it better to use try {} catch{}? does it work?
-- reaction
-- const disposer = reaction(mapFunction, reactFunction, options)
-- when
-- const disposer = when(predicateFunction, reactFunction)
-- !! it gets called only once!, should be called whenOnce()
-- action = transaction (atomicity, less recomputations)
-- const do  = action(() => { x=1 y=1 }) - mark event handlers as action (as high as possible :))
-- runInAction(() => {})
-- @action
-- @action.bound - also does this.fn.bind(this)
-- use this and keep actions on the store class, this is best practice
-- async flow - very hard to use actually
-- TODO
-- Pass store down via react context - best practice
+# MOBX 6
+Mobx makes data observable.
 
+For everything to be correctly observable it requires some boiler plate code. The most common problem with using mobx
+is that people simply forget to write this boiler plate and then are surprised that it does not work.
+
+## Basic usage
+
+
+## Under the hood
+Under the hood mobx creates JS Proxies for your observable objects in order to create a [publish/subscribe mechanism](https://github.com/mobxjs/mobx-react/issues/504) between observable and observer/reaction/computed.
+
+The big question is: how does mobx know which observable attributes are being accessed in a reaction (aka how to get the result of [getDependencyTree()](https://mobx.js.org/analyzing-reactivity.html#getdependencytree)). The trick here is that mobx runs every reaction/autorun/observer once immediately when it is created/used, and it also stores in a global variable an identifier of the reaction while running. This is why autorun runs once when created and then on any change, because mobx needs to run it once first - in this first run, the accessed observables look at the global variable and this is how they know that they are being used in such and such reaction.
+
+*Note that the source code of mobx is very poor quality. Even the function getDependencyTree is wrongly named, it should be getDependencyArray.*
+
+## Lessons learnt
+- `autorun` runs once immediately after it is created
+- `reaction` mapper fn is memoized and does not get computed immediately, but on the next change. To make it compute immediately, which is often useful, use `reaction(m, e, { fireImmediately: true })`. When mapper function returns a new object memoization does not work anymore, to fix that we can redefine memoization equality function to `reaction(m, e, { equality: comparer.structural / comparer.shallow })`
+- `autorun` and `reaction` can be throttled `reaction(m, e, { delay: 1000 })`
+- `when` can be cancelled after a certain time `when(c, e, { timeout: 10_000 })`
+- errors die inside `autorun`, `reaction`, etc., so Sentry will not catch them etc., this can be changed either by global `configure({ disableErrorBoundaries: true })` or local `reaction(m, e, { onError: (error: any) => {}})`
+- `makeObservable` can be called multiple times and accumulates the effect. This works also for inheriting classes.
+```ts
+class Dummy {
+    constructor() {
+        makeObservable(this, { items: observable })
+        makeObservable(this, { items2: observable })
+    }
+}
+class Child extends Dummy {
+    constructor() {
+        super()
+        makeObservable(this, { prices: observable })
+    }
+}
 ```
+- `makeAutoObservable` works on private fields / methods, but `makeObservable` does not, because it does not compile. A workaround is to use `@ts-ignore` and make also `makeObservable` work, but that's terrible.
+- `makeAutoObservable` does not work on uninitialized fields. To fix this, use a [babel config](https://mobx.js.org/installation.html#use-spec-compliant-transpilation-for-class-properties).
+```ts
+class Car {
+  // Does not become observable, unless the babel plugin is used
+  name: string | undefined
+
+  constructor() {
+    makeAutoObservable(this)
+  }
+}
+```
+- actions and computed can be overridden in sub class with the [override](https://mobx.js.org/subclassing.html) annotation.
+-
+
+## Best practices
+- prevent memory/resource leaks by always disposing reactions. This leads you to very quickly need destructors in your classes.
+```ts
+class Car {
+  disposers = []
+
+  constructor() {
+    this.disposers.push(disposer1)
+    this.disposers.push(disposer2)
+  }
+
+  destroy() {
+    this.disposers.forEach(disposer => disposer())
+    this.disposers = []
+  }
+}
+```
+
+## Cons of mobx
+1. **Potential bugs** - There is a bit of a danger with mobx, because it's implementation is very complicated, and as a result it has many bugs. Just read this [changelog](https://github.com/mobxjs/mobx/blob/main/packages/mobx/CHANGELOG.md#600) and you'll see how many bugs they found.
+2. **Documentation lacks** - Mobx is pretty complicated, and even though it's documentation is great, it still misses some important details.
+3. Mobx boiler-plate gets complicated if you use it on **classes with inheritance**, and it becomes very error-prone.
+4. It is not great for old device without Proxy API. It still works, [but not fully](https://mobx.js.org/configuration.html#limitations-without-proxy-support), and that just adds extra complexity on top.
+5. You cannot easily see what is observable and what is not. You have to annotate it in JSdoc (similar to @throws annotations).
+6. All mobx observable objects are hard to log / debug. You have to use `toJS()` before logging / debugging - otherwise everything is full of Proxies and it is a terrible mess. In chrome there are console/debugger formatters to fix this issue, but they suck (e.g. [formatter](https://github.com/motion/mobx-formatters)).
+7. In Typescript using `makeObservable` on private fields / methods causes a TS error (even though it works in Jest ironically). `makeAutoObservable` cannot be used with inheritance (neither for super nor sub class).
+
+All in all, you can still use mobx in production, no problem. Just be aware that you will run into problems with
+missing documentation, and possibly some bugs and that will slow you down.
+
+And don't use it on old devices and don't use it with inheritance.
+
+## Tooling
+- [Dev Tools extension](https://chrome.google.com/webstore/detail/mobx-developer-tools-pro/kbkofmkelombofknjlippaelfjhbpena) to inspect data. It is not perfect.
+- I made this [Mobx Prettifier](https://chrome.google.com/webstore/detail/mobx-prettier/helikjgacgldannkhjdncofmeodpabmp) to fix readability problem in console and debugger.
+
+
+### TODO
+
+- @action.bound - also does this.fn.bind(this)
+- async flow
+- TODO what is this injecting?
+```tsx
 <Provider productStore={ProductStore} uiStore={UiStore}>
   <div>{children}</div>
 </Provider>
@@ -55,70 +116,19 @@ const Items = inject('productStore')(
 
 ```
 
-- There will be an makeAutoObservable(this, exceptions?) that will default to observable for fields, computed for getters, action for functions
-- toJS
-- for console.log
-- for passing prop to non-mobx/non-observer component
-- best prac
+- TODO mobx domain store etc. example pattern
 - 1-Nx domain store, 1x UI store
-- backend integration should be part of store
-- example domain store
-- todoStore ma firebase umi smazat, load, create, update pres firebase
-- todos maji referenci na todoStore a tim padem se umi smazat
-- umi se samo ulozit, smazat
-- implementuje from/toJSON
-- example UI store
-- theme
-- language
-- step of wizard
-- network state
-- pending request indication
-- interations between UserStore and TodoStore can be done by using RootStore and passing refs to each store
-- testing should be normal unit testing (personal note: maybe use action(() => {}), but that's all)
-- import { trace } from "mobx"
-- WTF
-- autorun(() => {    console.log(message.likes[0]) }) // will not work if it is out of bounds
-- autorun(() => { //observable.map() // works fine for undefined key/value pair )
-    console.log(twitterUrls.get("Sara"))
-})
-
-# mobx6
-- decorators are deprecated
-- mobx cannto makeObservable private fields unless thay are in constructor
-- observable cannot be used for call that has super classes or sub classes
-- @observable private x: number; .... will not work! (because undefined) ... wtf :(
-- does work with makeObservable, makeAutoObservable
+- TODO overriding action in inheritance .. works?
 - testing mobx getter, which depends on an autorun value which came by async request ... this is a pain... because you have to wait for the async to resolve, but how? solved by await on a random statement :)
+- testAwaiter ...
 - does pull-based observing ... if I want push based i can autorun() in intervals or something
-- always run in action after await !!!
+- API:, annotations https://mobx.js.org/observable-state.html#available-annotations
 
-
-TODO mobx tips and tricks
-   TODO something about proxy support https://mobx.js.org/understanding-reactivity.html
-TODO mobx-react-lite
 TODO mobx-state-tree
 TODO mobx-keystone
 TODO https://github.com/mobxjs/mobx-state-tree
 src: https://iconof.com/best-practices-for-mobx-with-react/
 https://mobx.js.org/react-optimizations.html
 
-MOBx vs REDUX/REACT
-- react likes passing primitives as props (better React.memo), mobx likes passing object references (better for observer())
-- redux needs selectors to access deep state, mobx does not need anything )
-
-MOBX
-	* sometimes you don't want every method to be transactioned action
-
-```
-	makeAutoObservable(this, {
-			onPlaybackEnded: false,
-		})
-	}
-	onPlaybackEnded() { // not action
-		this.triggerEvent('playbackEnded') // action
-		// observers are notified
-		this.playNextSource() // action
-	}
-```
-
-- TODO see mobx.test.ts
+## Pros of mobx
+- It is optimized. Unlike Redux where mapper `mapStateToProps` or `useSelector` run on every dispatch and if they return a new array or a new object this can very easily lead to a rerender on every dispatch. And a second problem is if `mapStateToProps` or `useSelector` are expensive, in that case `reselect` must be used.
