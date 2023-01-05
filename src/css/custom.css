@@ -28,3 +28,37 @@
   --ifm-color-primary-lightest: #4fddbf;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
+
+.fail {
+  background: rgba(255,0,0,0.13);
+  padding: 3px;
+  margin-left: 0.5em;
+}
+.failEmoji {
+  font-size: 1.7em;
+}
+
+
+.todo {
+  background: rgb(164 171 255);
+  padding: 3px;
+  color: white;
+}
+.todoEmoji {
+  font-size: 1.6em;
+  background: #5b62b6;
+  color: white;
+  font-weight: bold;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.improve {
+  background: rgb(255 238 154 / 78%);
+  padding: 3px;
+  color: black;
+}
+.improveEmoji {
+  background: rgb(255 238 154 / 78%);
+  font-size: 1.9em;
+}

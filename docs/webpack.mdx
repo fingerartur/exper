@@ -1,0 +1,928 @@
+---
+sidebar_position: 7
+---
+
+import { Fail } from '@site/src/components/fail.js'
+import { Todo } from '@site/src/components/todo.js'
+import { Improve } from '@site/src/components/improve.js'
+import { Stars } from '@site/src/components/stars.js'
+
+
+# Webpack 5 🎖️
+Webpack bundles many files into one. It can also transpile code, minify it, generate source maps and TS typings, run analytics etc.
+
+## Basic concepts
+Webpack builds AST tree starting at `entry`, applies `loaders` to each module and then stitches them together to create `output`. Compilation happens in steps and these can be hooked into - that's how `plugins` work, they hook into [compilation steps](https://webpack.js.org/api/compiler-hooks/).
+
+```js
+const path = require('path')
+
+module.exports = {
+  // Input files
+  entry: './src/index.js',
+  // Output bundle(s)
+  output: {
+    filename: 'bundle.js',
+    path: path.resolve(__dirname, 'dist'),
+    clean: true, // clean ./dist before build
+  },
+  // Loaders - they transform input files
+  module: {
+    rules: [
+      // e.g. JSX loader, TS loader, ESNext babel loader
+    ]
+  },
+  // Plugins - transformations and validations applied to the output bundle
+  plugins: []
+}
+```
+
+E.g. [Circular dependency](https://github.com/aackerman/circular-dependency-plugin/blob/master/index.js) plugin taps into the `compilation > optimizeModules` event.
+E.g. [Webpack define](https://github.com/webpack/webpack/blob/main/lib/DefinePlugin.js) plugin also taps into the `compilation` event.
+
+<Fail>The naming of compilation steps is very unclear, and there is no diagram, so it is actually very hard to write a Webpack plugin.</Fail>
+
+## Basic setup
+
+### Prevent circular dependencies
+Webpack does nothing to prevent them and it is extremely dangerous. 
+Simple circular dependencies are fine, however more complex ones break the code bundle. Some of your exports simply become undefined, without any build warning! You will only find out about it during runtime.
+
+This is so extremely dangerous, because any change to your code base can break the bundle and you will not notice it.
+
+```js
+// npm i --save-dev circular-dependency-plugin circular-dependency-plugin-visualizer
+
+const CircularDependencyPlugin = require('circular-dependency-plugin')
+const visualizer = require('circular-dependency-plugin-visualizer')
+
+module.exports = {
+  plugins: [
+    new CircularDependencyPlugin(
+      visualizer(
+        {
+          exclude: /node_modules/,
+          cwd: process.cwd(),
+          failOnError: true,
+        },
+        {
+          filepath: path.join(__dirname,'circular-dependency-visualization.html'),
+          labels: true,
+        },
+      ),
+    ),
+  ],
+}
+```
+
+<Fail>Why doesn't webpack prevent fatal circular dependencies or all circular dependencies?</Fail>
+
+### Keep bundle size reasonable
+Use **[bundle analyzer plugin](https://www.npmjs.com/package/webpack-bundle-analyzer)** to find out which of your libraries blows up your bundle size. Use `maxEntrypointSize` to keep bundle size under a certain limit, if that limit is surpassed, build will fail, and you know you should either replace the latest lib with something more light weight or increase the bundle size limit.
+
+```js
+// npm i --save-dev webpack-bundle-analyzer
+
+const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
+
+module.exports = {
+  // Max /dist/index.js size is 50 kB
+  performance: {
+    hints: 'error',
+    maxEntrypointSize: 50 * 1024,
+  },
+  plugins: [
+    // Uncomment only when you want to run it
+    // new BundleAnalyzerPlugin()
+  ]
+```
+
+### Define build-time constants
+Note that `DefinePlugin` does direct string replacement, so if you want to define a string constant it must be quoted twice! If you pass a non-string value, it is first converted to string before replacing.
+
+```js
+const webpack = require('webpack')
+
+module.exports = {
+  return {
+    plugins: [
+      new webpack.DefinePlugin({
+        'BUILD_COMMIT_HASH': "'1838fjshx'",
+        'BUILD_TIME': new Date().getTime(),
+        'BUILD_STAGE': "'development'",
+        'BUILD_NUMBER': 110,
+        'BUILD_IS_DEBUG': true,
+
+        // Sometimes these are named "process.env.COMMIT_HASH", (e.g. in CRA), but I do not agree
+        // with that naming because browser apps do not have access to process.env. It is a node.js
+        // thing and it does not belong to browser.
+      }),
+    ],
+  }
+}
+
+// Then use them in code like this:
+declare var BUILD_STAGE: string;
+declare var BUILD_COMMIT_HASH: string;
+declare var BUILD_IS_DEBUG: boolean;
+
+const stage = BUILD_STAGE
+const commitHash = BUILD_COMMIT_HASH
+const debug = BUILD_IS_DEBUG
+```
+
+## Debugging
+If you want to check your bundle, just disable minification and you are good to go.
+
+```js
+module.exports = {
+  mode: 'development'
+}
+// or
+module.exports = {
+  devtool: false
+}
+```
+
+## Importing libraries
+JS libraries have gone through a big evolution. It started with global code, now it is modular. Now we are trying to import global code in a modular fashion. There are 5 different export syntaxes it is a **big mess**.
+
+Let's break it down and look at compatibility.
+
+### ESM
+[**ESM**](https://www.sitepoint.com/understanding-es6-modules/) - Ecma script modules is the new standard for frontend code, first defined in ES6 and TS. It is awesome. As a great bonus, it allows bundlers to apply tree shaking.
+
+**Webpack can import ESM libs out-of-the-box.**
+
+```js
+// a.js
+export const x = 1
+export default y = 2
+
+// b.js
+import { x } from './a.js'
+import Y from './a.js'
+```
+
+### Creating ESM lib/app
+
+#### ESM lib
+Simply copy your ESM code to `./dist`.
+
+#### ESM app
+For an app you want to bundle your code into a single file and minify it.
+
+Use this Webpack config:
+```js
+const path = require('path');
+
+module.exports = {
+  mode: 'production',
+  entry: './src/index.js',
+  output: {
+    filename: 'main.js',
+    path: path.resolve(__dirname, 'dist'),
+    library: {
+      type: 'module',
+    },
+  },
+  experiments: {
+    outputModule: true,
+  },
+}
+```
+
+### ESM lib from TS
+To create ESM lib from TS, use `tsc` because Webpack is more focused on bundling.
+
+Tsconfig should look approximately like this:
+```js
+// tsconfig.js
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "noImplicitAny": true,
+    "removeComments": true,
+    "preserveConstEnums": true,
+    "outDir": "./dist",
+    "sourceMap": true,
+    "declaration": true
+  },
+  "include": ["./src/**/*"]
+}
+```
+and run
+
+```bash
+yarn tsc
+```
+
+### ESM app from TS
+Use Webpack with `ts-loader`.
+
+```bash
+yarn add -D ts-loader
+```
+
+```js
+//webpack.config.js
+const path = require('path');
+
+module.exports = {
+  mode: 'production',
+  entry: './src/index.ts',
+  output: {
+    filename: 'main.js',
+    path: path.resolve(__dirname, 'dist'),
+    library: {
+      type: 'module',
+    },
+  },
+  resolve: {
+    extensions: [".ts"]
+  },
+  module: {
+    rules: [
+      { test: /\.ts$/, loader: "ts-loader" }
+    ]
+  },
+  experiments: {
+    outputModule: true,
+  }
+}
+```
+
+```js
+// tsconfig.js
+{
+  "compilerOptions": {
+    "sourceMap": true
+  }
+}
+```
+
+#### Using ESM directly in browser
+ESM is actually supported by all major browsers since 2018.
+
+```js
+// index.js
+import { User } from "./user.js" // .js is necessary
+
+const user = new User()
+user.sayhello()
+```
+
+```html
+<html>
+  <head>
+    <script type="module" src="/index.js"></script>
+  </head>
+  <body>
+  </body>
+</html>
+```
+
+### CJS
+[**CJS**](https://en.wikipedia.org/wiki/CommonJS) - Common JS is a standard for Node.js code and libs.
+
+**Webpack can import CJS libs out-of-the-box.** Node.js obviously too.
+
+```js
+// a.js
+module.exports = {
+  x: 1
+}
+
+// b.js
+const { x } = require('./a.js')
+const All = require('./a.js') // Here you can see a difference between ESM and CJS in how default import works
+```
+
+To create a CJS lib in Webpack use:
+
+```js
+module.exports = {
+  output: {
+    library: {
+      type: 'commonjs-static',
+      // Other options are: 
+      // commonjs - worse
+      // commonjs2 - worse
+      // commonjs-module - not documented
+    }
+  },
+}
+```
+
+### UMD
+[**UMD**](https://riptutorial.com/javascript/example/16339/universal-module-definition--umd-) - Universal module definition is a chameleon adapter for old frontend JS and Node.js. It wraps your code is a smart way so that it can be imported by `CJS` or `AMD` or simply be injected to Window in an old-style app. Before ESM was invented, UMD was *the ultimate compatibility hack*.
+
+**Webpack can import UMD libs out-of-the-box.**
+
+If you generate UMD with Webpack, this is what you get:
+```js
+!function (e, o) {
+  // If CJS import option is available use it
+  if ("object" == typeof exports && "object" == typeof module) module.exports = o();
+  // If AMD import option is available use it
+  else if ("function" == typeof define && define.amd) define([], o);
+  // Otherwise just inject into the global scope
+  else { var t = o(); for (var f in t) ("object" == typeof exports ? exports : e)[f] = t[f] }
+}(
+  // 
+  self,
+  // Your actual code
+  (function () { return console.log("hello world"), {} })
+);
+```
+
+To create a UMD lib in Webpack use:
+
+```js
+module.exports = {
+  output: {
+    library: {
+      name: 'MyLibrary',
+      type: 'umd',
+      // Other options are:
+      // umd2 - not documented
+    }
+  },
+}
+```
+
+### AMD
+[**AMD**](https://riptutorial.com/javascript/example/16341/asynchronous-module-definition--amd-) - Asynchronous module definition is an old module system for browser code. It assumes that you have a module engine (in runtime or compile time - does not matter), which supplies global `define` and `require` functions. Define is used to defined modules, require to use them. It is very flexible, modules can be added in runtime at any point.
+
+**Webpack can import AMD libs out-of-the-box.**
+
+Example of AMD module definition:
+```js
+// Define a module "myModule" with two dependencies, jQuery and Lodash
+define("myModule", ["jquery", "lodash"], function($, _) {
+    // This publicly accessible object is our module
+    // Here we use an object, but it can be of any type
+    var myModule = {};
+
+    var privateVar = "Nothing outside of this module can see me";
+
+    var privateFn = function(param) {
+        return "Here's what you said: " + param;
+    };
+
+    myModule.version = 1;
+
+    myModule.moduleMethod = function() {
+        // We can still access global variables from here, but it's better
+        // if we use the passed ones
+        return privateFn(windowTitle);
+    };
+
+    return myModule;
+});
+```
+
+To create AMD in Webpack use:
+
+```js
+module.exports = {
+  output: {
+    library: {
+      name: 'MyLibrary',
+      type: 'amd',
+      // Other options are:
+      // amd-require - calls require immediately instead of letting module engine do it
+    }
+  },
+}
+```
+
+### Window libs
+Good old window libs are the oldest type of libraries. They come from the time when you used one or two libraries and the rest was Vanilla JS. The iconic duo `$` and `_` (jQuery and lodash) are a good example. These libraries simply inject themselves to `Window` and that's it.
+
+To use this library, you simply load it via a HTML script tag.
+```html
+<head>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js" async></script>
+</head>
+```
+(Webpack cannot load it)
+
+The code of the library contains these lines:
+```js
+// inject to window
+window.jQuery = {...}
+window.$ = window.jQuery
+```
+
+To create a Window lib in Webpack use:
+
+```js
+module.exports = {
+  output: {
+    library: {
+      name: 'MyLib', // you will call functions via window.MyLib.fn()
+      type: 'window',
+    }
+  },
+}
+```
+
+### SystemJS
+[**System.JS**](https://github.com/systemjs/systemjs/blob/main/docs/system-register.md) is another module engine.
+
+Webpack does not support consuming SystemJS libs.
+
+To create a SystemJS lib in Webpack use:
+
+```js
+module.exports = {
+  output: {
+    library: {
+      name: 'MyLib',
+      type: 'system',
+    }
+  },
+}
+```
+
+### Foot notes
+1. All the different types of libs that Webpack can generate are [documented here](https://webpack.js.org/configuration/output/#outputlibrarytype).
+2. **If you are writing a library, please tell us what type it is in the readme! And whether it is ES5.**
+
+<Fail>Big fail is that you cannot easily tell the type of a library and neither whether it is ES5. It is not specified in package.json, old libraries may not even have package.json and it is not written in a top comment in index.js file. This is not a webpack problem, but a general problem that noone ever tried to solve.</Fail>
+
+<Fail>Webpack fail: lacking documentation for umd2 and commonjs-module</Fail>
+
+
+## Support Typescript
+```js
+module.exports = {
+  module: {
+    rules: [
+      {
+        test: /\.ts$/,
+        exclude: /node_modules/,
+        use: {
+          loader: 'ts-loader',
+        },
+      },
+    ],
+  },
+}
+```
+
+## Make sure your app runs in old browsers
+To do this, you need to make sure your app is transpiled to ES5.
+
+Start by telling Webpack that you are targeting `ES5`. **It does not do any transpilation.** The only thing this affects is the extra code that Webpack adds to the output bundle (e.g. some utilities for joining modules together).
+
+```js
+module.exports = {
+  target: [ 'web', 'es5' ]
+}
+```
+
+### Transpile YOUR code to ES5
+
+#### Javascript
+If you are using JS run it through the Babel loader, this transpiles **your** code (not libs) to ES5.
+```js
+module.exports = {
+  module: {
+    rules: [{
+      test: /\.js$/,
+      exclude: /node_modules/,
+      use: {
+        loader: 'babel-loader',
+        options: {
+          presets: ['@babel/preset-env']
+        }
+      }
+    }]
+  },
+}
+```
+
+#### Typescript
+If you are using TS and `ts-loader`, configure it to transpile **your** code to ES5 via `tsconfig.json`.
+
+```js
+// tsconfig.json
+
+{
+  compilerOptions: {
+    target: "ES5",
+  }
+}
+```
+
+### Transpile libraries to ES5
+Typically you should never transpile libraries, because it takes a lot of extra time. That is why authors always ship libs already written or transpiled to ES5.
+
+There are only two situation when you must transpile libraries - botched old libs or cool new libs.
+
+Old libs are transpiled to ES5 and they use `main` in package.json. However if the author made a mistake, you may find some ESNext code in there.
+
+Cool new libraries come with `module` attribute in package.json. This points to modularized code. Now there can be two types of modularized code - modularized ES5 (aka ES5 exported via ES6 exports) or full-on ESNext modules, using ESNext language features.
+
+#### Modularized ES5 libs
+In case of `modularized ES5` you do not need to do anything. The only syntax that is not ES5 compatible is `export/import` and that is already handled by webpack target.
+
+```js
+module.exports = {
+  target: [ 'web', 'es5' ]
+}
+```
+
+#### ESNext modules
+ESNext modules allow you to build a modern bundle, but if you need ES5 compatibility you need to transpile them yourself. You already know how to do it, just use babel.
+
+```js
+module.exports = {
+  /**
+   * Transpile libraries which are not ES5 to ES5
+   */
+  test: /\.(js|mjs)$/,
+  // e.g. deepcopy lib uses the following ES6 features: spread op, map and set
+  include: /node_modules\/(enum-for|deepcopy)/,
+  use: {
+    loader: 'babel-loader',
+    options: {
+      presets: ['@babel/preset-env'],
+    },
+  },
+},
+```
+
+#### Finding ES5-incompatible libs
+
+The `check-es5-webpack-plugin` is an important first step, it fails your build when it is not fully ES5 compatible. This way you can easily find the commit that caused your problem.
+
+```js
+// npm i --save-dev check-es5-webpack-plugin
+
+module.exports = {
+  plugins: [
+    new CheckES5WebpackPlugin(),
+  ],
+}
+```
+
+Then you can use `yarn list` to list all dependencies of the libs that you installed in the bad commit and go through them one by one to find out which is incompatible.
+
+<Improve>Is there an easier way? There is a [checker tool](https://github.com/yowainwright/es-check) but it strictly check ES5, so also export/import keywords result in an error, and I don't want that because I know webpack can handle them. I believe this lib could be pretty easily modified to do the check I want.</Improve>
+
+### Polyfill your missing APIs
+Transpilation alone is not enough, to get up and running in old browsers. You are using browser APIs (e.g. `Promise`, `fetch`, `Set`, `Map`) and neither Babel nor webpack adds them. You have to inject them via polyfills or shims.
+Use [core-js polyfill](https://github.com/zloirock/core-js).
+
+This import polyfills all ESNext APIs for you. 
+```js
+import 'core-js/actual'
+```
+
+However that is a bit of an overfill. Ideally you would make a list of the APIs you are using and polyfill only those.
+
+
+
+<Todo>a script that would tell you what you need to polyfill that would be great. Is there something like that?</Todo>
+
+Actually https://babeljs.io/docs/en/babel-preset-env should do that automatically! test that!
+And how does it work with ts-loader?
+
+## Advanced setup
+You may use `webpack-merge` to deep merge configs.
+
+```js
+const { merge } = require('webpack-merge')
+
+const commonConfig = {
+  entry: './src/index.js',
+}
+
+const devConfig = merge(commonConfig, {
+  mode: 'development'
+})
+
+const prodConfig = merge(commonConfig, {
+  mode: 'production'
+})
+
+// Run two builds
+module.exports = [devConfig, prodConfig]
+```
+
+## Webpack tree shaking
+
+### Un-imported files elimination
+**Webpack eliminates un-imported files** - files in your code base that are not imported anywhere or files from libraries from `node_modules` that are not imported will not be part of the bundle. This is not tree shaking, this is just how Webpack works (it builds AST tree of files, starting at the entry point and following imports).
+
+### Dead code elimination
+**Webpack eliminates dead code** - this is called **tree shaking** and it only happens in `mode: production`. Webpack analyzes what exports you use from a file and discards the rest of the exports and their code. This also happens for libraries from `node_modules` if they are shakable.
+
+You have to specify `sideEffects: false` for dead code elimination to work optimally with your code. This tells webpack that you do not import polyfills, or change window object etc. when loading the file. If you do not specify `sideEffects: false`, webpack must use some heuristic to try to find out if your code has side effects, but it does not work very well. However, since you usually do not have any dead code in your project, this is not very interesting unless you are writing a library.
+
+AST and tree shaking sound great, but in your code you usually do not have any dead code or unused dependencies. So how does AST and tree shaking help me? It is great for shaking down libraries. But there is a catch - it does not work every time.
+
+#### Case study of `lodash`:
+
+```js
+// all 75 kB are added even though I import only map. This library is not shakable
+import { map } from 'lodash'
+
+// only 16 kB are added to my bundle. Lodash-es is a shakable version of lodash
+import { map } from 'lodash-es'
+
+// all 75 kB are added to my bundle, because I am importing everything from lodash
+import _ from 'lodash-es'
+
+// only 20 kB are added to my bundle, because I import from subdirectory
+import map from 'lodash/map'
+```
+
+### How to check that a library is shakable
+Not all libraries are shakable. Old libs routinely ship in ES5 and you cannot shake that. Modern shakable libs ship with two version of code - ES5 for backward compatibility and ESNext or modular ES5 for tree shaking.
+
+Ideally, if a library is shakable, the author should document it very well and explain who to import shakable code vs. how to import ES5 code. However we cannot always rely on that.
+
+A shakable library has:
+
+1. `module` attr in package.json, which points to a modular entry point. Whereas the `main` attr points to old style ES5 bundle.
+2. Entry point should contain multiple `export` statements. If there is only one the shaking has not effect.
+3. Click through the exported APIs and check that they lead to different modules.
+4. package.json should contain `"sideEffects": false` or `"sideEffects": [...]`.
+
+<Todo>How to check that a lib is shakable without inspecting `node_modules`?</Todo>
+
+### How to build a tree shakable library
+First think if it even makes sense. Some libs such as `deepcopy` export only one function, so there is nothing to shake because you use the whole code of the lib. Other libs such as `lodash` or `firebase` on the other hand have a lot of shakable modules.
+
+1. Use ESM aka ES6 modules with `export/import`. The contents of your modules can be ES5 or ESNext it does not matter.
+2. package.json `main` points to your ES5 bundle, now add `module` which points to your `index.mjs` of your ESM code. (`.mjs` extension means it is a ESM module, you can also use plain `index.js`).
+3. Add `sideEffects` attr to `package.json` this will instruct bundlers about files with side effects
+
+```js
+// ideally
+"sideEffects": false,
+// or
+"sideEffects": "./src/polyfills.js"
+```
+
+
+### Subdir imports
+An alternative to tree shaking are subdir imports. You can import from a subdir if the library is structured that way and allows that. If you are lucky this can be as effective as tree shaking.
+
+```js
+// e.g.
+import map from 'lodash/map'
+```
+
+Or the library can combine subdir imports and tree shaking. The main reason to do something like that is readability in my opinion.
+
+#### Creating a subdir-structured library
+A subdir-structured library has one `index.js` and multiple files or sub directories, such as `map.js` or `/map` in case of lodash. To generate such structure with Webpack is a bit tricky, but in general it can be done, perhaps using other tools.
+
+Note also, that subdir-structured libraries do not contain their code in `./dist` because that way their import would be ```import map from 'lodash/dist/map```. This means that subdir-structured libraries have everything stuffed into the root folder and that again is pretty inconvenient.
+
+All in all subdir-structured libraries seem to be quite clumsy.
+
+## Important details
+**Q: If I import lodash but never use it, will it be added to the bundle or not?**
+
+```js
+import _ from 'lodash'
+```
+
+**A: Yes.** Even if I set `sideEffects: false`. The moral is, if your lib is not ESM, tree shaking will not be triggered at all.
+
+**Q: If I import only one function from lodash, am I saving kBs?**
+
+```js
+import { map } from 'lodash'
+```
+
+**A: No.** The moral is the same, if your lib is not ESM, tree shaking will not be triggered at all. The confusing thing here is that the import looks like ESM import, but reality is different.
+
+<Todo>How was this import made possible?</Todo>
+
+<Todo>More about import styles https://www.sitepoint.com/understanding-module-exports-exports-node-js/</Todo>
+
+
+### Other about shaking
+<Todo>Finish</Todo>
+2. If you import `import _ from 'lodash';`, the whole lodash will be included even if you never use it because it is not ESM. 
+3.  It does not matter if I import one function of the whole lodash, the whole lodash gets bundled in anyway. Because lodash is not tree-shakable.
+
+Lodash is a bit tricky, it looks shakable but isn't
+```js
+import _ from 'lodash';
+import { map } from 'lodash';
+```
+
+2. Alternative to lib shaking is ```import map from 'lodash/map'``` aka subfolder import. In essence it should be the same as tree shaking from ESM, but it is not, subfolder import results in a larger bundle. I am not 100% sure why yet, maybe because ESM is not transpiled to ES5 and subfolder is. No transpilation did not increase the size, it is still 15 kB
+
+```
+import { map } from 'lodash-es'  // 15 kB
+import map from 'lodash/map'     // 20 2kB
+```
+### How to make a lib tree shakable
+
+### Case study
+1. lodash-es has ESM export/imports in files and `main` and `module` defined in package.json, in this case they are the same. The `module` attr is just a proposal, but it works fine I guess. [info](https://webpack.js.org/guides/author-libraries/#final-steps)
+
+
+10. **How to check if a library is tree shakable?** - has package.json.module and it contains ESM exports. This in it self is not enough, the library itself must be well structured (decoupled exports), e.g. if all exports import a 10 MB object than your tree shaking is fucked. Is there a tool for that? to see the module structure?
+
+11. How does it shake - in prod. It removes unused exports, (and exports used by unused exports) recursively. Exports and/or whole files are eliminated. Not-exported dead code is also eliminated.
+
+```js
+const artySortInner = () => {
+  return 'artySortInner xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+}
+
+export const artySort  = () => {
+  artySortInner()
+  return 'artySort'
+}
+```
+
+1.  You can speed up by tree shaking by putting `"sideEffects": false` in package.json and making sure you code does not have side effects (e.g. importing polyfills, changing window object, etc.). However ideally the output should be the same with or without this. On the other hand maybe webpack tree shaking is not 100% effective, they do not claim that.
+
+2.  Important point is that tree shaking is really useful for libraries, not for your app. In your app you usually do not have any dead code, so the tree shaking does shit. But you use only a small part of some library, so the tree shaking applied to node_modules is great. So basically if I build in production mode tree shaking is applied automatically, I just need to make sure that libraries support it.
+
+3.  sideEffects true only tells webpack to look into libraries package.json for sideEffects attr (it also looks into by package.json but that is almost completely unnecessary, because I do not expect to have any dead code). Lodash-es for example has `sideEffects: false`, great!
+
+4.  The only good reason I can think about why I would have dead code in my app is if I have multiple very different entry points. But that never happens for normal apps.
+
+5. For some reason optimizations do not work for me in dev mode.
+```
+  // devtool: false,
+  // mode: "development",
+  // optimization: {
+  //   providedExports: true,
+  //   usedExports: true,
+  //   innerGraph: true,
+  //   sideEffects: true,
+  // },
+```
+
+[src nice](https://blog.theodo.com/2021/04/library-tree-shaking/)
+
+## Authoring libraries
+Libraries always ship with Javascript. Even Typescript libraries do not actually ship with TS code, it is actually JS and typings (`d.ts` files).
+
+Javascript libraries are commonly transpiled to ES5 and support UMD. ES5 gives them great compatibility with old browsers and UMD gives them great compatibility with code bundlers (such as Webpack).
+
+New libraries ship both with ES5 JS and ESNext JS. ESNext has lower bundle size and it allows tree shaking! We use `main` and `module` respectively for the ES5 and ESNext version. If webpack finds `module`
+
+
+
+TODO Externals
+TODO transpile to es5
+TODO module and don't transpile to es5
+
+
+# Source maps
+- allow me to see original un-minified, un-bundled source files and file structure based for a specific line of compiled bundle
+- debugger loads them based on last line of chunk file ```//# sourceMappingURL=main.78fbc578.chunk.js.map```
+- they can be large and can take some time to initialize
+- they translate col,row -> filename, col, row
+- they also contain the original sources concatenated in an array
+- structure
+```
+{
+    version: 3, // current standard
+    file: "chunk.js",
+    sources: [ "file1.js", "file2.js" ],
+    sourcesContent: [ "content1", "content2" ],
+    mappings: ";;;asdfadf...",
+}
+```
+- they can be generated by webpack
+```
+    devtool: 'source-map' // generates source maps like chunk.js.map in ./dist
+    devtool: false
+
+    new webpack.SourceMapDevToolPlugin({
+        filename: '[file].map', // change output file name
+        publicPath: 'https://example.com/dev/' // change output file URI (default is relative .
+        - same as source)
+    });
+```
+- who needs sourcemaps:
+  - sentry (can auto-load them)
+  - me when somebody is showing me a bug in the console (browser auto-loads them)
+- What about lib source-maps?
+  - 🥶 I think they should not work because the lib is not in a separate chunk and probably it's sourceMappingUrl is relative, but that cannot work, because nobody is hosting that source map. ...Maybe this https://www.npmjs.com/package/source-map-loader will work?
+  - It is also possible to use in-line source maps `devtool: 'eval-cheap-module-source-map'` however browser than doubles every file for some reason 🐷
+- security:
+  - host your source maps on a private server inside a VPN, then only you will be able to load them (rewrite sourceMappingUrl). Nice but this way sentry cannot access them
+  - if Sentry cannot access your source-maps, you can upload them manually or [automatically w webpack](https://docs.sentry.io/platforms/javascript/sourcemaps/)
+    - since code evolves, errors are mapped to correct source-map versions by `.release` attribute (each build of your app has to have a new version/release number)
+
+
+
+## TODO
+  - can import images as dependency (json, png, any FILE) `import img from './imgs/img1.png'
+  - WTF mode:production bundles peerDependencies (and normal dependencies too i think:) ) !!!! ... we have to use externals https://webpack.js.org/configuration/externals
+  - source maps in production yes or no??? definitely not inline sourcemaps tho!! (sourceMapURL is data url inlined in the file ... not even recommended by webpack :))
+  - TODO source maps: https://blog.scottlogic.com/2017/11/01/webpack-source-map-options-quick-guide.html
+  - difference 4 vs 5
+  - speed up TS with fork-ts-checker-webpack-plugin
+
+
+
+```js
+const path = require('path')
+
+const CheckES5WebpackPlugin = require('check-es5-webpack-plugin')
+const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
+const webpack = require('webpack')
+const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin
+
+module.exports = (env) => {
+    const resolverMapRelativePath = env.experimental_es5_support === 'true'
+        ? 'src/store/services/ad/vastResolver/resolvers/resolverMapLegacy'
+        : 'src/store/services/ad/vastResolver/resolvers/resolverMapModern'
+
+    const polyfillsRelativePath = env.experimental_es5_support === 'true'
+        ? 'src/polyfills-es5'
+        : 'src/polyfills'
+
+    return {
+        entry: './src/index.ts',
+        stats: {
+            preset: 'errors-warnings',
+            timings: true,
+        },
+        module: {
+            rules: [
+                {
+                    test: /\.tsx?$/,
+                    use: {
+                        loader:'ts-loader',
+                        options: {
+                            transpileOnly: true,
+                        },
+                    },
+                    exclude: /node_modules/,
+                },
+                {
+                    /**
+                     * Transpile libraries which are not ES5 to ES5
+                     *
+                     * This step is necessary for legacy devices such as Arris STB.
+                     */
+                    test: /\.(js|mjs)$/,
+                    include: /node_modules\/(enum-for|deepcopy)/,
+                    use: {
+                        loader: 'babel-loader',
+                        options: {
+                            presets: ['@babel/preset-env'],
+                        },
+                    },
+                },
+            ],
+        },
+        output: {
+            filename: 'index.js',
+            globalObject: 'this',
+            library: 'library',
+            libraryTarget: 'umd',
+            path: path.resolve(__dirname, 'dist'),
+            umdNamedDefine: true,
+        },
+        resolve: {
+            extensions: [ '.ts', '.js' ],
+            alias: {
+                '@@resolverMap': path.resolve(__dirname, resolverMapRelativePath),
+                '@@polyfills': path.resolve(__dirname, polyfillsRelativePath),
+            },
+        },
+        plugins: [
+            new ForkTsCheckerWebpackPlugin({
+                typescript: {
+                    build: true,
+                    mode: 'write-dts',
+                },
+            }),
+            new webpack.DefinePlugin({
+                'process.env.commit_hash': JSON.stringify(env ? env.commit_hash : 'undefined'),
+                'process.env.build_time': JSON.stringify(new Date()),
+                'process.env.stage': JSON.stringify(env ? env.stage : 'undefined'),
+                'process.env.version': JSON.stringify(env ? env.version : 'undefined'),
+                'process.env.firebase_config': JSON.stringify(env ? env.firebase_config === 'undefined' ? '' : env.firebase_config : ''),
+                'process.env.experimental_es5_support': env ? env.experimental_es5_support : 'false',
+            }),
+            new CheckES5WebpackPlugin(),
+            // new BundleAnalyzerPlugin({
+            //     analyzerMode: 'static',
+            // }),
+        ],
+        target: ['web', 'es5'],
+    }
+}
+```
+
+<Stars srcs={["23325340.png"]}/>

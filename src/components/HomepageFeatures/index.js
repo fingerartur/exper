@@ -1,45 +1,43 @@
-import React from 'react';
 import clsx from 'clsx';
+import React from 'react';
+import { SmartImage } from '../smartImage';
 import styles from './styles.module.css';
 
-const FeatureList = [
+const FEATURE_LIST = [
   {
-    title: 'Easy to Use',
-    Svg: require('@site/static/img/undraw_docusaurus_mountain.svg').default,
+    title: 'Tools',
+    src: '18813486.png',
     description: (
       <>
-        Docusaurus was designed from the ground up to be easily installed and
-        used to get your website up and running quickly.
+        Webpack, Eslint, Test runners, CI.
       </>
     ),
   },
   {
-    title: 'Focus on What Matters',
-    Svg: require('@site/static/img/undraw_docusaurus_tree.svg').default,
+    title: 'Javascript',
+    src: '20757939.png',
     description: (
       <>
-        Docusaurus lets you focus on your docs, and we&apos;ll do the chores. Go
-        ahead and move your docs into the <code>docs</code> directory.
+        Javascript, Typescript, React, Redux, Mobx, etc.
       </>
     ),
   },
   {
-    title: 'Powered by React',
-    Svg: require('@site/static/img/undraw_docusaurus_react.svg').default,
+    title: 'Backend / serverless',
+    src: '24279176.png',
     description: (
       <>
-        Extend or customize your website layout by reusing React. Docusaurus can
-        be extended while reusing the same header and footer.
+        Firebase, Node.js
       </>
     ),
   },
 ];
 
-function Feature({Svg, title, description}) {
+function Feature({src, title, description}) {
   return (
     <div className={clsx('col col--4')}>
       <div className="text--center">
-        <Svg className={styles.featureSvg} role="img" />
+        <SmartImage src={src} />
       </div>
       <div className="text--center padding-horiz--md">
         <h3>{title}</h3>
@@ -54,8 +52,8 @@ export default function HomepageFeatures() {
     <section className={styles.features}>
       <div className="container">
         <div className="row">
-          {FeatureList.map((props, idx) => (
-            <Feature key={idx} {...props} />
+          {FEATURE_LIST.map((props) => (
+            <Feature key={props.title} {...props} />
           ))}
         </div>
       </div>
