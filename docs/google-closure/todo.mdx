@@ -1,0 +1,36 @@
+## Notes
+- how does GCC handle cyclic dependencies? No they can be created, GCC does not error. I have not found a GCC option for preventing them. And authors [do not care](https://github.com/google/closure-compiler/issues/1883)
+- Problem is GC works with types one way whereas the type warning that I see in IDE are vscode JSDoc based warnings, which may be stronger or weaker than GC. So it is possible I am annotation types needlessly because GC can infer them but vscode cannot. It would be nice to find out the inferring strength of each and compare.
+- there is a webpack plugin https://www.npmjs.com/package/closure-webpack-plugin
+
+- somehow HTMLElement and Element get confused, it looks like GCC almost redefines types for DOM API, it is very weird
+```js
+/**
+ * @type {HTMLElement|null}
+ */
+const el = document.getElementById('hello') // vscode does not error, but GCC does! (and it shouldn't is my opinion)
+
+// ./src/js/index.js:34:11: WARNING - [JSC_TYPE_MISMATCH] initializing variable
+// found   : (Element|null)
+// required: (HTMLElement|null)
+//   34| const el = document.getElementById('hello')
+```
+
+# TODO GC
+
+1. Read whole wiki
+2. Read Discuss
+3. Does GCC keep typedefs and inferfaces in the bundle during advanced compilation?
+4. Is there any way to get Type Utils such as ReturnValue etc.?
+5. How to create a library - does it work with ESM,CJS,UMD,AMD?
+6. how to polyfill and transpile to ES5?
+7. here is a list of all disabled warnings, some of them should be enabled https://github.com/google/closure-compiler/wiki/Warnings
+8. does dead code elimination work?
+9. Make warnings stricter https://github.com/google/closure-compiler/wiki/FAQ#when-using-type-checking-sometimes-closure-compiler-doesnt-warn-me-about-missing-properties-why-not
+
+
+## TODO extra
+
+1. interop with TS libraries? does GCC check types according to ts libraries?
+2. memory leak 1 https://github.com/google/closure-compiler/issues/2689
+3. Study shaka player

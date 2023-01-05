@@ -1,0 +1,99 @@
+# Any Type
+There two type of `any` type - **unknown** and **all** - they are very similar.
+
+## Unknown
+[**Unknown**](https://github.com/google/closure-compiler/wiki/Types-in-the-Closure-Type-System#the-javascript-type-language) type `?`. When GCC does not know the type it uses this **unknown** type. E.g. untyped function parameters or untyped class attributes get the **unknown** type.
+
+```js
+/**
+ * @type {?}
+ */
+const x = 1
+/**
+ * @type {number}
+ */
+const y = x
+```
+
+## All
+
+[**All**](https://github.com/google/closure-compiler/wiki/Types-in-the-Closure-Type-System#the-javascript-type-language) type `*` is a safer version of unknown type, which cannot be freely assigned to typed variables or used in expressions without typecasting it first.
+
+```js
+  /**
+   * @type {*}
+   */
+  const x = 1
+
+  /**
+   * @type {number}
+   */
+  const y = x // Produces an error
+
+  const y2 = /** @type {number} */ (x) // ok
+```
+
+## Caveats
+
+### Type checking
+
+These any types however are not completely excluded from type checking. Instead GCC gives them the **union of all types** type. So accessing an attribute that is not defined anywhere in your code or in GCC built-in types produces an error.
+
+```js
+/**
+ * @typedef {{ carSpec: string }}
+*/
+var Car;
+
+/**
+ * @type {*} // or {?}
+*/
+const x = {}
+const ctx = x.getContext('2d') // ok, attribute of Element
+const spec = x.carSpec // ok, attribute of Car
+const y = x.carBrand // produces error
+```
+
+### Untyped object type
+An easy hack to **define an unchecked object** type is:
+
+```js
+/**
+* @type {{_: undefined}}
+*/
+const x = {}
+```
+
+### typeof and JSON validation
+There is a caveat to this type checking and that is that **`typeof` expressions are not type-checked.** (Same as in Typescript).
+  
+```js
+const x = _data.somethingMadeUp  // produces error
+const y = typeof _data.somethingMadeUp // ok
+```
+
+This is actually good because it allows me to do my **JSON validation easily**.
+
+```js
+/**
+ * @param {*} _data 
+*/
+function validateData(_data) {
+  if (
+    typeof _data.somethingMadeUp !== 'number'
+    || _data.somethingMadeUp <= 0 // GCC infers that somethingMadeUp is a number and works as expected
+  ) {
+    throw new Error('somethingMadeUp must be a positive number')
+  }
+
+  if (
+    typeof _data.somethingElse !== 'string'
+    || _data.somethingElse.length <= 8 // GCC infers that somethingElse is a string
+  ) {
+    throw new Error('somethingElse must be a string of at least 8 characters')
+  }
+}
+```
+
+## Extra
+<Todo>This type checking should be documented</Todo>

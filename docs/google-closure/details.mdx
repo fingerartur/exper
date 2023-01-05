@@ -1,0 +1,27 @@
+# GC Details
+
+1. Enums work as expected. It is possible to convert string to enum, **but only if keys and values are the same.**
+  ```js
+  /**
+   * @enum {string}
+   */
+  const Fruit = {
+    APPLE: 'APPLE',
+    ORANGE: 'ORANGE',
+    BANANA: 'BANANA',
+  }
+
+  /**
+   * @type {Fruit}
+   */
+  const fruit = Fruit['BANANA'] // conversion worked, but only because keys and values are the same
+  ```
+2. Type casting syntax
+  ```js
+  const canvas = /** @type {HTMLCanvasElement|null} */ (document.getElementById('canvas'))
+  ```
+  In the documentation there is a `!`, but it does not seem to be necessary.
+
+  ```js
+  const canvas = /** @type {!HTMLCanvasElement|null} */ (document.getElementById('canvas'))
+  ```

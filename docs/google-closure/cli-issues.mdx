@@ -1,0 +1,33 @@
+import { Improve } from '@site/src/components/improve.js'
+
+# GCC issues
+GCC CLI has a lot of flags, sometimes it is a challenge to understand what they do.
+
+## Generic issues
+1. There is not guide to walk me through main topics - minification, transpilation, working with libs.
+2. ❌ I have to use a LOT of flags, but there is no config file (like webpack.config.js)
+3. There is no plugin system, so missing features will not be added by the community.
+4. Creation of source maps is needlessly complicated and it is not explained anywhere [github issue](https://github.com/google/closure-compiler/issues/218) 
+5. GCC errors in stdout are white, some color would be nice (orange/red).
+6. There is no watch mode.
+
+## GCC CLI issues
+Some CLI flags are obscure, some wrongly documented. I went through all of them, let's break it down.
+
+1. `compilation_level`, `externs`, `conformance_configs`, `extra_annotation_name`, 
+2. `js` - does not say anything about node_modules
+3. `warning_level` - warnings about what?
+4. `debug` - does not seem to be doing anything
+5. `generate_exports` vs `export_local_property_definitions` - what is the difference?
+6. "Available Error Groups" - should link to here https://github.com/google/closure-compiler/wiki/Warnings
+7. `--js_module_root` - wrong doc (https://github.com/google/closure-compiler/issues/3628)
+8. `module_resolution` - `BROWSER_WITH_TRANSFORMED_PREFIXES` undocumented
+9.  `--process_common_js_modules` wrong doc
+10. `chunk` wrong doc
+11. `source_map_input` - this is for libraries?
+12. `source_map_location_mapping` - insufficient doc
+13. `browser_featureset_year` - what does it do exactly?
+14. `charset` should be charset_input and charset_output
+15. `--js` flag should not be necessary but is, the engine creates a dependency tree anyway
+
+<Improve>File issues for each of them</Improve>

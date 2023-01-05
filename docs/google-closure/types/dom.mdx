@@ -1,0 +1,78 @@
+# DOM type checking
+Type checking of HTML elements is a joke, let's break it down:
+
+## Element and Node
+
+GC only has only one type to represent HTML elements and it is `Element`. There is also `Node` type which is a parent of `Element` and represents DOM comments, etc. Therefore in reality, you will only ever use `Element`.
+
+`Element` represents all HTML elements at once and it works like this:
+
+1. Basic attributes that are any HTML element has (such as `id`, `textContent`, `style`) are type-checked as expected.
+
+```js
+  const div = document.getElementsByTagName("div")[0]
+  const x = div?.id // `id` is string
+```
+
+2. Advanced attributes that only some elements have are type-checked, but their type is **unknown**. **So it is a very shitty level of type checking.**
+
+```js
+const div = document.getElementsByTagName("div")[0]
+const ctx = div.getContext("2d") // `ctx` is unknown
+div.width = { width: 400 } // `width` is unknown, so I can pass anything to it, this is wrong
+div.height = 100 // `height` is unknown
+``` 
+
+3. Attributes that do not exist on any DOM element produce error
+
+```js
+const div = document.getElementsByTagName("div")[0]
+const ctx = div.getContextzzzz("2d") // produces error
+``` 
+
+## Specific Types do not exist
+
+Sadly more specific type such as `HTMLCanvasElement` do not exist. There is only `Element`.
+
+Advanced HTML types such as `HTMLCanvasElement`, `HTMLDivElement` do not exists, as therefore should cause error. However [there is no error, which leads to a whole new level of confusion](./report).
+
+
+## How to write your own specific types
+Use union types to fix the situation and define your own specific types. e.g.
+
+```js
+/**
+ * @typedef {Element | {
+*   value: string
+* }}
+*/
+export var HTMLInput;
+```
+
+## Confusion in Vscode IDE
+
+If you are using vscode IDE, intellisense will should you rich types from Typescript. This cool feature is build-in to vscode.
+
+**However, from the point of view of GCC, these types do not exist. So don't be fooled.**
+
+```js
+// vscode tells me this is HTMLCollectionOf<HTMLDivElement>, such type does not exist in GC
+const div = document.getElementsByTagName("div")
+// vscode tells me this is HTMLElement | null, such type does not exist in GC
+const div = document.getElementById("div")
+```
+
+### IDE problem
+The fact that GC and Typescript have completely different DOM types is a big deal. This means any time I work with
+DOM elements vscode will show me warnings/errors in IDE. That sucks tremendously.
+
+This GC / Typescript mismatch is not limited to DOM types, but there it is the most painful.
+
+*You can work around this with `@ts-ignore`. It is very strange to use ts-ignore in GC code, but you can do it.*
+
+```js
+// @ts-ignore
+width: this.canvas.width,
+```
+
+**My opinion: If you cannot comfortably use a language in Vscode, it is a BIG problem.**

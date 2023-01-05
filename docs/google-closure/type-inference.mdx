@@ -1,0 +1,254 @@
+# GC type inference
+Here I will briefly analyze how smart is GCC. Can it infer some types or do I have to declare everything a million times like in the case of Flow?
+
+I will try to compare GC to TS and vscode JS/TS language features with is a syntax checker built-in to the IDE.
+
+## Variable
+
+✅ GC can infer type of a statically initialized variable (not initialized via a function call.). Except arrays.
+
+```js
+const name = 'Artur'
+/**
+ * @type {number}
+ */
+const num = name // will error
+```
+
+```js
+const person = new Map()
+person.set('name', 'Artur')
+person.set('surname', 'Fedorov')
+
+/**
+ * @type {number}
+ */
+const num = person // will error
+```
+
+```js
+const person = {
+  name: 'Artur',
+  surname: 'Fedorov'
+}
+
+/**
+ * @type {number}
+ */
+const num = person // will error
+```
+
+```js
+const person = function() {}
+/**
+ * @type {number}
+ */
+const num = person // will error
+```
+
+😞 GCC cannot infer the type of array.
+
+```js
+const x = [1,2,3,4]
+x.push('xxx') // 😞 does not error, but it should!
+```
+
+## Return value - simple
+😞 GCC cannot infer not even a very simple return value.
+
+**This means you have to always annotate return types! ALWAYS.**
+
+```js
+const runme = () => {
+  return 'hello'
+}
+
+/**
+ * @type {number}
+ */
+const x = runme() // 😞 does not error but it should! Vscode and TS are smarter
+
+console.info('x', x)
+```
+
+```js
+const x = (function() {
+  const x = 1
+  const y = 2
+  return x + y
+})()
+
+/**
+ * @type {string}
+ */
+const y = x // 😞 does not error but it should! Vscode and TS are smarter
+```
+
+## Being defined
+
+✅ GC can infer that a variable inside a non-null check is not null.
+
+```js
+/**
+ * @type {string|null}
+ */
+const x = 'hello'
+
+if (x != null) {
+  /**
+   * @type {string}
+   */
+  const y = x // does not error
+}
+```
+
+✅ GC can infer that a variable with defensive non-null check is not null.
+
+```js
+function hello() {
+  /**
+   * @type {string|null}
+   */
+  const x = 'hello'
+
+  if (x == null) {
+    return null
+  }
+
+  /**
+   * @type {string}
+   */
+  const y = x // does not error
+}
+```
+
+```js
+function hello() {
+  /**
+   * @type {string|null}
+   */
+  const x = 'hello'
+
+  if (x == null) {
+    throw new Error('fail')
+  }
+
+  /**
+   * @type {string}
+   */
+  const y = x // does not error
+}
+```
+
+😞 However, if there are **two** defensive non-null checks, that is already too much for GCC. It cannot infer that vars are non-null in that case.
+
+```js
+/**
+ * @returns {{canvas: HTMLCanvasElement, renderingContext: CanvasRenderingContext2D }}
+ */
+function init() {
+  const canvas = /** @type {!HTMLCanvasElement|null} */ (document.getElementById('canvas'))
+    
+  if (!canvas) {
+    throw new Error('canvas not found')
+  }
+
+  const renderingContext = canvas.getContext('2d')
+
+  if (!renderingContext) {
+    throw new Error('rendering context not ready, canvas is not usable')
+  }
+
+  return { //😞 errors even though it should not, thinks vars can be null even though they definitely cannot
+    canvas,
+    renderingContext,
+  }
+}
+```
+
+😞 Sadly even simple null checks are not enough if the function is slightly longer.
+
+```js
+_getContext() {
+  const renderingContext = this.canvas.getContext('2d')
+
+  if (!renderingContext) {
+    throw new Error('rendering context not ready, canvas is not usable')
+  }
+
+  renderingContext.clearRect(0, 0, this.canvas.width, this.canvas.height)
+  
+  return  /** @type {CanvasRenderingContext2D} */ (renderingContext) // 😞 GCC should know this is not null, but doesn't.
+}
+```
+
+## Enums
+
+😞 Enums can be edited, GCC does not detect that. Luckily that is not a big problem, because GCC uses only the original declaration for type checking, so even if you add values to enum, you cannot use them in compile time.
+
+```js
+/**
+ * @enum {string}
+ */
+const Fruit = {
+  APPLE: 'APPLE',
+  ORANGE: 'ORANGE',
+  BANANA: 'BANANA',
+}
+
+Fruit.MOVIE = 'Game of Thrones' // 😞 enum can be edited, but it should not. Vscode / TS would error, GCC does not
+
+/**
+ * @param {Fruit} fruit
+ */
+function eat(fruit) {}
+
+eat(Fruit.MOVIE) // will error and that is good. even though .MOVIE was added to enum, GCC check types with respect to original declaration only
+```
+
+## Object union types
+😞 GCC will not infer type of object based on its attributes. This would come useful if you have documents of different interface in one collection.
+
+```js
+/**
+ * @typedef {{ seeds: number }}
+ */
+var AppleType;
+
+/**
+ * @typedef {{ juice: string }}
+ */
+var OrangeType;
+
+/**
+ * @type {AppleType | OrangeType}
+ */
+const fruit = {
+  seeds: 5,
+}
+
+if ('seeds' in fruit) {
+  console.log('Juice ', fruit.juice); // 😞 will not error. TS will error
+}
+```
+
+## Sets and Maps
+
+😞 GCC will not infer type of values in the set
+```js
+const set = new Set([1, 2])
+
+set.has('hello') // 😞 will not error, but should
+```
+
+## Class attributes
+
+😞 **Untyped attributes** become `?` type (unsafe any type). So make sure you always type your attributes. Typescript would simply infer that it is number. [Documented here.](https://github.com/google/closure-compiler/wiki/Types-in-the-Closure-Type-System#differences-between-inferred-and-declared-types)
+
+```js
+class Car {
+  constructor(){
+    this.age = 20 // becomes `?` type
+  }
+}
+```

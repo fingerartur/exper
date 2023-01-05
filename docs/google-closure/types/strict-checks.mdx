@@ -1,0 +1,82 @@
+
+# About `strictCheckTypes` compiler flag
+This flag is mentioned several times in the doc. I ran a quick analysis to find out if I want to enable it or not. The answer is not.
+
+Let's have a look at what the flag does:
+
+```js
+// Object gets changed, now it has only basic attributes
+/**
+ * @param {Object} x 
+ */
+function go(x) {
+  return x.getContext('2d') // produces error
+}
+
+// Element gets changed, now it has only basic attributes
+/**
+ * @param {Element} x 
+ */
+function go(x) {
+  return x.style // ok
+}
+
+// ? type stays the same
+/**
+ * @param {?} x 
+ */
+function go(x) {
+  return x.getContext('2d') // ok
+}
+
+// * type changes, now it does not match any type instead of matching all.
+// Now you always have to type-cast it before continuing
+/**
+ * @param {*} x 
+ */
+function go(x) {
+  return x.filter() // produces error
+}
+
+// Old-style classes become @struct (so you cannot access undefined attributes anymore)
+/**
+ * @constructor
+ */
+function Car() {}
+new Car().color = 'blue' // produces error
+
+// Record types "become @struct"
+/**
+ * @type {{ name: string }}
+ */
+const x = {
+  name: 'hello',
+}
+x.surname = 'xxxx' // produces error
+
+// Union types completely change. From representing a set union of given types, they now represent a set intersection. So only attributes that are common in all give types are accessible, nothing else.
+/**
+ * @typedef {{ name: string} | {age: number, name: string}}
+ */
+var Car;
+/**
+ * @type {Car}
+ */
+const car = { name: 'BMW'}
+const age = car.age // produces error. Previously it would work.
+```
+
+## Good
+1. It makes old-style classes `@struct`.
+2. It makes record types `@struct-like`
+
+## Bad
+1. I cannot work with DOM elements anymore. Having unchecked `Element` type was bad, but at least I could access its attributes, now I cannot.
+2. `Object` type is now useless, same story as with `Element`.
+3. Union types are now upside down. Instead of representing a set union they now represent set intersection.
+
+## Conclusion
+`Object` type sucks whether `strictCheckTypes` is on or off, don't use it.
+
+The strict check is great but there is simply no [reasonable way to make it work with the DOM](./report). So my advice is to enable it if you are not working with the DOM, otherwise keep it disabled.
+
