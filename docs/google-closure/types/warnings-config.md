@@ -1,4 +1,4 @@
-# Compiler flags
+# Warnings configuration
 Type compiler does not checks all the types that it could. Some type checks are simply disabled by default. Let's have a look at them and see what I can use in my advantage.
 
 [The list is here](https://github.com/google/closure-compiler/wiki/Warnings). I looked at the ones that are OFF to see if I should turn them ON.
@@ -8,26 +8,18 @@ Type compiler does not checks all the types that it could. Some type checks are 
 1. `checkDebuggerStatement` ✅
 2. `unusedLocalVariables` ✅
 3. `reportUnknownTypes` ✅
-4. `visibility`, `accessControls` -🚨 TODO both are ON by default. Fix doc
-5. `const` (includes `constantProperty`) - 🚨 TODO is ON by default, both are. Fix doc
-6. `missingRequire` - works by default on ESM modules
-7. `missingReturn` 🚨 does nothing - TODO report
+4. `visibility`, `accessControls` - 🚨 both are ON by default. Fix doc
+5. `const` (includes `constantProperty`) - 🚨 both are ON by default. Fix doc
+6. `missingReturn` - 🚨 is ON by default. Fix doc
+7. `missingRequire` - 🚨 works by default on ESM modules
 8. `strictCheckTypes`
    - includes `strictMissingProperties` ✅
-   - includes `strictPrimitiveOperators` 🚨 does nothing - TODO report
-9.  `unusedPrivateMembers` 🚨 does nothing - TODO report
+   - includes `strictPrimitiveOperators` 🚨 does nothing
+9.  `unusedPrivateMembers` 🚨 does nothing
 10. `missingProperties` 🚨 - do not know what it means
 11. `strictModuleDepCheck` 🚨 - do not know what it means
 12. `typeInvalidation` 🚨 - do not know what it means
 13. `undefinedNames` 🚨 - UKNOWN to compiler
-
-### missingReturn
-```js
-function hello() {
-  let x = 555
-  return 'hello' // should error
-}
-```
 
 ### unusedPrivateMembers
 ```js
@@ -41,7 +33,7 @@ class Car {
 }
 ```
 
-### strictCheckTypes / strictPrimitiveOperators
+### strictPrimitiveOperators
 ```js
 function go() {
   return 555 + 'hello' + {} + new Element() // should error

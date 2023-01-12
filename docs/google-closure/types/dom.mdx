@@ -1,11 +1,22 @@
 # DOM type checking
-Type checking of HTML elements is a joke, let's break it down:
+Default type checking of HTML elements is a joke, but with `strictCheckTypes` it's pretty fine. Let's break it down:
 
-## Element and Node
+## Lack of documentation
+The only documented types are `Element` and `Node`.
 
-GC only has only one type to represent HTML elements and it is `Element`. There is also `Node` type which is a parent of `Element` and represents DOM comments, etc. Therefore in reality, you will only ever use `Element`.
+Luckily, there are also other types available: `HTMLElement`, `HTMLInputElement`, `HTMLDivElement`, etc. ([missing doc reported](https://github.com/google/closure-compiler/issues/4036))
 
-`Element` represents all HTML elements at once and it works like this:
+**Sadly, the list is incomplete, so types for `HTMLCanvasElement`, `HTMLVideoElement` and probably others are missing.**
+
+Check the source code of DOM and of browser APIs in general.
+
+- [DOM2 source code](https://github.com/google/closure-compiler/blob/master/externs/browser/w3c_dom2.js)
+- [DOM for HTML5](https://github.com/google/closure-compiler/blob/master/externs/browser/html5.js)
+- [Browser APIs source code](https://github.com/google/closure-compiler/tree/master/externs/browser) including other versions of DOM.
+
+
+## Default behavior
+By default `Element` represents all HTML elements at once and it works like this:
 
 1. Basic attributes that are any HTML element has (such as `id`, `textContent`, `style`) are type-checked as expected.
 
@@ -30,41 +41,56 @@ const div = document.getElementsByTagName("div")[0]
 const ctx = div.getContextzzzz("2d") // produces error
 ``` 
 
-## Specific Types do not exist
+## Strict behavior
+It is definitely a good idea to enable strict type checking `strictCheckTypes`, because then finally the DOM types start to be checked correctly (same as in Typescript).
 
-Sadly more specific type such as `HTMLCanvasElement` do not exist. There is only `Element`.
+## How to define missing DOM types
+If you want to work with `Canvas` with strict mode, you will have to improve its type.
 
-Advanced HTML types such as `HTMLCanvasElement`, `HTMLDivElement` do not exists, as therefore should cause error. However [there is no error, which leads to a whole new level of confusion](./report).
+To do this correctly, it must be done via **externs**. Here is a possible way to define externs for DOM types:
 
-
-## How to write your own specific types
-Use union types to fix the situation and define your own specific types. e.g.
 
 ```js
 /**
- * @typedef {Element | {
-*   value: string
+ * @fileoverview Advanced DOM types
+ * @externs
+ */
+
+/**
+ * @typedef {{
+*    clearRect: Function,
 * }}
 */
-export var HTMLInput;
+var RenderingContext2D;
+
+/**
+ * @extends {HTMLCanvasElement}
+ */
+class HTMLCanvasElement2 {
+  constructor() {
+    /**
+     * @type {function(string): (RenderingContext2D | null)})}
+     */
+    this.getContext;
+  }
+}
 ```
 
 ## Confusion in Vscode IDE
 
-If you are using vscode IDE, intellisense will should you rich types from Typescript. This cool feature is build-in to vscode.
+If you are using vscode IDE, intellisense will show you rich types from Typescript. This cool feature is build-in to vscode.
 
-**However, from the point of view of GCC, these types do not exist. So don't be fooled.**
+**However, these are Typescript types, not GCC types. So don't be fooled!**
 
 ```js
-// vscode tells me this is HTMLCollectionOf<HTMLDivElement>, such type does not exist in GC
+// vscode tells me this is HTMLCollectionOf<HTMLDivElement>, however GCC tell me it is `NodeList<Element>`
 const div = document.getElementsByTagName("div")
-// vscode tells me this is HTMLElement | null, such type does not exist in GC
+// vscode tells me this is `HTMLElement | null`, however GCC tells me this is in fact `Element` type
 const div = document.getElementById("div")
 ```
 
 ### IDE problem
-The fact that GC and Typescript have completely different DOM types is a big deal. This means any time I work with
-DOM elements vscode will show me warnings/errors in IDE. That sucks tremendously.
+The fact that GC and Typescript have completely different DOM types is a big deal. This means any time I work with DOM elements vscode will show me warnings/errors in IDE, because the GCC types are differently names, or may not even exist. That sucks tremendously.
 
 This GC / Typescript mismatch is not limited to DOM types, but there it is the most painful.
 

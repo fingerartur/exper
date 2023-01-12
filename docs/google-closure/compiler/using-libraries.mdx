@@ -1,0 +1,159 @@
+import { Fail } from '@site/src/components/fail.js'
+import { Todo } from '@site/src/components/todo.js'
+import { Improve } from '@site/src/components/improve.js'
+import { Stars } from '@site/src/components/stars.js'
+
+
+# Using libraries
+Libraries are used via externs. Externs may define types, but they most importantly define the libs API and prevent GCC from mangling this code.
+
+## Docs
+- [official - advanced compilation and externs](https://developers.google.com/closure/compiler/docs/) - general idea
+- [official - externs](https://developers.google.com/closure/compiler/docs/externs-and-exports) - general idea, [how to define them](https://developers.google.com/closure/compiler/docs/externs-and-exports#externs)
+- [@externs annotation](https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler#externs)
+- [advanced notes on externs](https://github.com/google/closure-compiler/wiki/How-do-I-make-closure-compiler-stop-breaking-my-API-by-removing-and-renaming-things%3F) - good explanation of when externs are needed. It mentions that server calls, web workers need externs. It mentions that externs do not need to be imported (they are global). It shows example of how to do externs for web worker
+
+## Existing extern type definitions
+### Built-ins
+- Built-in externs for [browser APIs including DOM, Window, fetch API, etc.](https://github.com/google/closure-compiler/tree/master/externs/browser)
+- Built-in externs for [JS APIs including Math, Number, String, Array, etc.](https://github.com/google/closure-compiler/tree/master/externs)
+- Built-in externs for [Node.js](https://github.com/google/closure-compiler/tree/master/contrib/nodejs)
+- Another externs for [Node.js](https://github.com/dcodeIO/node.js-closure-compiler-externs), don't know what is the difference compared to built-ins
+- Built-in externs for [3rd party libs, such as Google Maps, jQuery, Angular](https://github.com/google/closure-compiler/tree/master/contrib/externs)
+### Other
+- Other externs for [3rd party libs, such as Firebase, HLS.js, React](https://github.com/google/closure-compiler/wiki/Externs-For-Common-Libraries)
+
+
+
+# TODO find out
+1. how to import a CJS library
+2. how to create externs file for a CJS library?
+3. If extern types are global, what if I have two CJS libraries and each exports the same `merge` function?
+4. A big mistake in externs is the following: you use ESM modules, but you need externs to call REST API, but your payload uses a complex type that has attributes of type `Car` and `Car`, both of these are completely different types. But externs file works globally, so now wtf will happen? This situation is not supported!
+
+
+# TODO report
+- this page https://github.com/google/closure-compiler/wiki/Externs-For-Common-Libraries many links do not work
+  - https://github.com/firebase/firebase-js-sdk/tree/master/packages/firebase/externs
+  - https://github.com/steida/react-externs
+  - https://github.com/steida/react-externs/blob/master/externs.js
+  - https://github.com/google/closure-compiler/tree/master/contrib/externs/youtubeplayer.js
+- FAQ https://github.com/google/closure-compiler/wiki/FAQ#how-do-i-write-an-externs-file does not actually describe how to create an externs file, especially not for a CJS library
+- Documentation of externs is spread across 4 pages (see #Doc)
+
+
+
+# TODO
+
+
+
+- CJS problem - https://github.com/google/closure-compiler/issues/3360
+
+
+
+
+
+### Using Window, UMD(Window) libs
+Don't run it through the compiler, simply include it in a script tag in HTML, old style. The only thing you need to do now is to [define externs as explained here](https://developers.google.com/closure/compiler/docs/externs-and-exports#externs) to prevent mangling, and that's it.
+
+Example of my micro library: (not part of compilation)
+```html
+<script>
+  window.fuck = {
+    you: (extra) => { console.info('fuck you' + extra) },
+    them: () => { console.info('fuck you') }
+  }
+</script>
+```
+
+Example of externs file: This file can be anywhere in the directory structure, the only thing you need to do is to pass it to the compiler via `--js` just like any normal JS file.
+```js
+/**
+ * @fileoverview Externs for fuck lib @externs
+ */
+const fuck = {};
+/**
+ * @param {string} extra
+ */
+fuck.you = function(extra) {};
+fuck.them = function() {};
+```
+Example of code:
+```js
+// Notice there is no import, `fuck` namespace/variable is global
+fuck.you('bro')
+```
+Here is an interesting caveat, even though your `fuck` namespace is global and therefore should exist on `window`, GCC type-checking does not allow you to call it via window.
+
+```js
+window.fuck.you() // raises error
+// WARNING - [JSC_INEXISTENT_PROPERTY] Property fuck never defined on Window
+```
+
+<Todo>report this. At least it should be documented, because this is a nonsense situation. The library is literally defined on window, externs are global, etc window access does not work</Todo>
+
+### Using CJS, ESM, UMD(CJS)
+<Todo>libs</Todo>
+- TODO defining externs for a non-namespaced lib
+
+## Using AMD
+- I think there is no support
+
+
+
+
+## How to import a library (CJS, UMD)
+I have a big problem finding documentation on this. There are bits and pieces here and there but never the full picture and never all the information.
+
+[Doc1](https://github.com/google/closure-compiler/wiki/JS-Modules)
+[Doc2](https://github.com/google/closure-compiler/wiki/Managing-Dependencies)
+Closest to a good explanation is [here](https://stackoverflow.com/questions/41832896/google-closure-compiler-process-node-modules).
+
+By trial and error I managed to get it work with `lodash` like this:
+
+1. `--process_common_js_modules`, because most libs CJS or UMD which is compatible with CJS
+2. `--module_resolution=WEBPACK`, otherwise it is not possible to import from `node_modules` (default resolution is BROWSER and that takes only relative paths)
+3. `--js=node_modules/lodash/package.json --js=node_modules/lodash/**.js` for the compiler [to find lodash](https://stackoverflow.com/questions/41832896/google-closure-compiler-process-node-modules). This is not well documented at all.
+4. `--hide_warnings_for=node_modules/lodash` to make sure closure does not type-check the library itself. Again [not documented](https://stackoverflow.com/questions/47668995/google-closure-suppress-warning-messages-for-a-particular-file).
+
+TODO something does not seem right because vscode/TS types are off. Actually there seems to be an error in the types, not in the import mechanism.
+TODO [about externs](https://stackoverflow.com/questions/21122259/creating-closure-compiler-extern)
+  - https://blogs.missouristate.edu/web/2013/09/12/how-to-write-closure-compiler-extern-files-part-1-the-basics/ I failed to define externs for lodash, this article says literally nothing!
+
+## Some libraries do not get imported!
+- [merge](https://www.npmjs.com/package/merge) - Fails. seems to be CJS. Direct import works
+- [xtend](https://www.npmjs.com/package/xtend) - Fails. seems to be CJS. Direct import works
+- [array-flatten](https://www.npmjs.com/package/array-flatten) - Fails. seems to be CJS
+- [react](https://www.npmjs.com/package/react) - here the problem is process.env in index file
+  ```js
+  'use strict';
+
+  if (process.env.NODE_ENV === 'production') {
+    module.exports = require('./cjs/react.production.min.js');
+  } else {
+    module.exports = require('./cjs/react.development.js');
+  }
+
+  ```
+  But a direct import works. Again it seems CJS
+  ```js
+  const react = require('react/cjs/react.production.min.js')
+  console.log('react: ', react);
+  ```
+- [redux](https://www.npmjs.com/package/redux). Fails. seems to be UMD.
+  But a direct import works.
+  ```js
+  const redux = require('redux/dist/redux.js')
+  console.log('redux: ', redux);
+  ```
+- my library build with webpack as commonjs-static. Finally a direct import works
+  ```js
+  const libtypes = require('libtypes/dist/index.js')
+  console.log('libtypes: ', libtypes);
+  ```
+
+TODO https://github.com/google/closure-compiler/issues/3714
+
+## How to import Node.js stdlib
+
+1. Importing stdlib in node.js is [not supported](https://github.com/google/closure-compiler/issues/3719), you have to do a big workaround (fake node_modules basically)

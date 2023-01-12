@@ -16,7 +16,9 @@ In essence GC type system is similar to Typescript. Let's now have a look at som
 It is an **optional type system**, params, variables, anything can be untyped. GCC will either infer the type or use `?` aka `unknown` type.
 
 ### Suppressing
-You can [suppress](https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler#suppress-warninggroup1warninggroup2), but sadly you cannot suppress all warnings at a line. You can only suppress specific warnings.
+You can [suppress](https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler#suppress-warninggroup1warninggroup2) errors and warnings, but sadly you cannot suppress all at a line/file. You have to be specific.
+
+It is pretty complicated to suppress and error. GCC gives you error codes, but you cannot suppress them, you have to find an error group that contains this code and suppress the group instead. [Here is a list of all the error groups](https://github.com/google/closure-compiler/wiki/@suppress-annotations).
 
 ### Any
 There two different `any` types - **unknown (?)** and **all (*)**. Unlike typescript `any`, the represent something like the union of all possible types. **[Read more](./any-type)**.
@@ -65,7 +67,68 @@ const node = {
 }
 ```
 
-<Todo>There is no documentation on this, only this issue https://github.com/google/closure-compiler/issues/2011</Todo>
+
+### Interfaces
+
+Old syntax
+
+```js
+/** @interface */
+function ISerializable() {};
+/** @type {function(): string} */
+ISerializable.prototype.serialize;
+/** @type {function(string): *} */
+ISerializable.prototype.deserialize;
+
+/**
+* @implements {ISerializable}
+* @constructor
+*/
+function Car() {}
+Car.prototype.serialize = function() { return 555 }; // produces error, wrong return type
+/**
+* @param {boolean} ok
+*/
+Car.prototype.deserialize = function(ok) { }; // produces error wrong param type
+```
+
+New syntax
+
+```js
+/**
+ * @interface
+ */
+class ISerializable {
+  constructor() {
+    /** @type {string} */
+    this.id;
+  }
+  
+  /**
+   * @returns {string}
+   */
+  serialize() {}
+}
+
+/**
+ * @implements {ISerializable}
+ */
+class Car {
+  constructor() {
+    this.id = 'FJS904328JS';
+  }
+
+  serialize() {
+    return '{ "id": "FJS904328JS"}'
+  }
+}
+
+```
+
+**Careful**, there is a bug, if you never call `return` in a method, then return value is [**not checked**](./report).
+
+It is possible to use **`@record`**, which behaves like a Typescript `interface` and does not need the corresponding `@implements`, but `@interface` is preferred, because [`@interface` produces better code optimization](https://github.com/google/closure-compiler/wiki/Structural-Interfaces-in-Closure-Compiler#use-of-interface-is-preferred-to-record-when-possible).
+
 
 ### Nullable types
 Explicitly **Nullable** types have syntax `?number`, **undefinable types do not exist**.
@@ -139,6 +202,34 @@ function Car() {}
 new Car().name = 'Tesla'; // produces error
 ```
 
+### Try catch
+[Type-checking catch is straight forward](https://github.com/google/closure-compiler/wiki/Annotating-Types#catch-declarations). If you know the type:
+
+```js
+try {
+  parseFloat('hello')
+} catch (/** @type {Error} */ error) {
+  console.error(error.message)
+}
+```
+If you don't know the type:
+```js
+try {
+  parseFloat('hello')
+} catch (/** @type {*} */ error) {
+  console.error(error)
+}
+```
+
+
+
+
+
+
+
+
+
+
 
 
 ## Strange and wrong
@@ -201,8 +292,8 @@ function eat(fruit) {
 ### Generic object type fails
 Generic Objects (e.g. `Object<string, number>`) [do not work](./report)
 
-### typeof fails
-`typeof` operator [does not work](./report)
+### typeof is useless
+`typeof` operator does not work as expected. [Apparently you can only use it on a namespace and I do not even know what that means.](https://github.com/google/closure-compiler/wiki/Types-in-the-Closure-Type-System)
 
 ### Some, and only some, types are nullable
 **Some type are nullable by default.** This is a fucking joke. More specifically, primitive types are non-nullable and Object-based types are nullable. Let's see examples:
@@ -260,8 +351,15 @@ const car = null; // produces error
 - Arrays are [wrongly assumed to never be empty](./report)
 - HTML collection is [wrongly assumed to never be empty](./report)
 
+### Array callback methods are not type checked
+Array methods such as **filter, map, forEach, reduce, etc.**  are not type-checked. The type of the callback is not inferred! ([reported](https://github.com/google/closure-compiler/issues/4041))
+
+```js
+// GCC thinks `item` is `unknown` type!
+const positive = [-1,0,1,2,3,4].filter((item) => item > 2);
+```
 ### DOM type check sucks
-Type checking of HTML elements is a joke. In essence there is only `Element` which kind of represents a union of all HTML elements, but even that is not done very successfully.
+In short DOM type checking only starts to work correctly when `strictCheckTypes` compiler flag is enabled. Then is is pretty fine, not perfect, but fine.
 
 [Read more all the details.](./dom)
 
@@ -336,73 +434,46 @@ let cutText = function(text) {
 const value = cutText(new Date()) // No error is produced neither left nor right
 ```
 
-### Interfaces are ugly
-
-**Interfaces**, let's break it down:
-
-`@interface` must be used hand in hand with `@implements`. You can use old syntax
-
+### Promises are not type-checked well
+[Read about it here](https://github.com/google/closure-compiler/issues/4040)
 
 ```js
-/** @interface */
-function ISerializable() {};
-/** @type {function(): string} */
-ISerializable.prototype.serialize;
-/** @type {function(string): *} */
-ISerializable.prototype.deserialize;
-
 /**
- * @implements {ISerializable}
-* @constructor
-*/
-function Car() {}
-// produces error because .serialize() and .deserialize() are not defined
-
-/**
-* @implements {ISerializable}
-* @constructor
-*/
-function Car() {}
-Car.prototype.serialize = function() { return 555 }; // produces error, wrong return type
-/**
-* @param {boolean} ok
-*/
-Car.prototype.deserialize = function(ok) { }; // produces error wrong param type
+ * @type {Promise<string>}
+ */
+const p = Promise.resolve() // should raise error, it resolves to undefined, not string
 ```
-
-Or you can use new syntax
 
 ```js
-/** @interface */
-class ISerializable {}
 /**
-* @type {string}
-*/
-ISerializable.prototype.id;
-/**
-* @type {function(): string}
-*/
-ISerializable.prototype.serialize;
-
-/**
-* @implements {ISerializable}
-*/
-class Car {
-  constructor() {
-    this.id = 'car';
-  }
-
-  serialize() {
-    return 'my car'
-  }
-}
+ * @type {Promise<string>}
+ */
+const p = Promise.resolve().then(function() { return 555 }) // should raise error, it resolves to number, not string
 ```
 
-**Careful**, there is a bug, if you never call `return` in a method, then return value is [**not checked**](./report).
+```js
+/**
+ * @type {Promise<string>}
+ */
+const p = new Promise((resolve, reject) => {
+  resolve(666) // should raise error, it resolves to number, not string
+})
+```
 
-It is possible to use **`@record`**, which behaves like a Typescript `interface` and does not need the corresponding `@implements`, but `@interface` is preferred, because [`@interface` produces better code optimization](https://github.com/google/closure-compiler/wiki/Structural-Interfaces-in-Closure-Compiler#use-of-interface-is-preferred-to-record-when-possible).
-
-<Todo>It is a pity that the new syntax is not documented anywhere!</Todo>
+```js
+/**
+ * @type {Promise<number>} // should raise error, it resolves to string, not number
+ */
+const p = new Promise(
+  /**
+   * @param {function(string): void} resolve 
+   * @param {function(string): void} reject 
+   */
+  (resolve, reject) => {
+    resolve('Hello')
+  }
+)
+```
 
 ### Typedefs fail with recursion
 
@@ -425,27 +496,50 @@ export class Car {
 const car = new Car().color = 'blue' // ok. It is in the same file
 ```
 
-### Window type
-GCC does type-checking of window so it knows `Window` type. However, I have [not found it documented anywhere](./report)
+### Spread/rest operators work only half the time
+[Object spread](https://github.com/google/closure-compiler/issues/3132) and [object rest](https://github.com/google/closure-compiler/issues/4042) operators do not get type-checked correctly.
+
+**Luckily at least rest params and array rest are type checked as they should.**
+```js
+/**
+ * @param {...number} args 
+ */
+function sum(...args) {
+  return args
+}
+```
+```js
+/**
+ * @type {Array<number>}
+ */
+const arr = [1,2,3,4,5,6]
+const [x, ...rest] = [1,2,3,4,5,6] // GCC understands that `rest` is Array<number>
+```
+
+### Lack of Type Utilities
+Sadly the type system lacks Type Utilities (such as `ReturnType`, `Omit`, etc. see [TS type utilities](https://www.typescriptlang.org/docs/handbook/utility-types.html)). This leads to a lot more boilerplate.
+
+
+
 
 
 
 
 
 ## Compiler flags
-The strictness of the compiler can be configured and by default it is not as strict as it could be. Sadly the [compiler flags are a big mess and frequently do not work](./compiler-flags).
+The strictness of the compiler can be configured and by default it is not as strict as it could be. Sadly the [compiler flags are a big mess and frequently do not work](./warnings-config).
 
-I recommend enabling:
+**I recommend enabling:**
+
 ```bash
 --jscomp_error=checkDebuggerStatement \
 --jscomp_error=unusedLocalVariables \
---jscomp_error=reportUnknownTypes \ # ideally
+--jscomp_error=reportUnknownTypes \
+--jscomp_error=strictCheckTypes
 ```
 
 ### Strict type checking
-`strictCheckTypes` gives you strict type checking, however, [I have concluded that it works only when you do not work with the DOM](./strict-checks).
+There are two flags vital to making sure type checking is strict and on point:
 
-
-## TODO
-1. here externs https://github.com/google/closure-compiler/wiki/How-do-I-make-closure-compiler-stop-breaking-my-API-by-removing-and-renaming-things%3F are documented, but I haven't found this when I was looking for it, it needs a link in wiki!
-2. https://github.com/google/closure-compiler/wiki/Conformance:-Sources-of-%22unknown%22
+1. `strictCheckTypes` - [makes sure you can only access the attributes that are definitely defined on a type](./strict-checks). Also, union types become intersection types.
+2. `reportUnknownTypes` - whenever GCC does not know the type it produces a warning (by default there is no warning)

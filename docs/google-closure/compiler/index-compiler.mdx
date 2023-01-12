@@ -1,0 +1,152 @@
+---
+sidebar_position: 0
+---
+
+import { Fail } from '@site/src/components/fail.js'
+import { Todo } from '@site/src/components/todo.js'
+import { Improve } from '@site/src/components/improve.js'
+import { Stars } from '@site/src/components/stars.js'
+
+
+# Compiler
+The compiler (GCC) does type checking, tree shaking, minification and a implements support for module systems. Nothing however comes out-of-the-box, and [working with GCC CLI is a real pain](./cli-issues).
+
+Do you want source maps? Yes, possible but I won't tell you how. Do you want minification/optimization? Yes, that is what GCC is famous for but you have to figure out how on your own. Do you want to import code from `node_modules`? Go look on stackoverflow to figure out how, and even then it will not work.
+
+The most basic setup, just to compile a bundle is pretty complex:
+
+```bash
+java -jar ./scripts/closureCompiler.jar \
+  --entry_point=./src/js/index.js \
+  --js=./src/**.js \ # This glob must select all JS files that should (potentially) be in the bundle
+  --js_output_file=./dist/bundle.js
+```
+
+All in all GCC seems good at compiling simple web app without dependencies but anything beyond that is a headache.
+
+## Module systems
+CJS and ESM syntax are supported out-of-the-box. GC also comes with its own `goog.provide()`, `goog.require()` modules system, which works as well.
+
+One weird quirk is that you have to configure
+
+```bash
+java -jar ./scripts/closureCompiler.jar \
+  --module_resolution=WEBPACK
+```
+
+this allows you to write imports without file extension.
+
+```js
+import { app } from './app' // not app.js
+```
+
+## Using libraries
+[Read all about using libraries here.](./using-libraries)
+
+## Type checking
+In order to run strict type checking configure:
+```bash
+java -jar ./scripts/closureCompiler.jar \
+  --warning_level=VERBOSE \
+  --jscomp_error=checkDebuggerStatement \
+  --jscomp_error=unusedLocalVariables \
+  --jscomp_error=reportUnknownTypes \
+  --jscomp_error=strictCheckTypes;
+```
+You can read more about [warnings configuration here](../types/warnings-config).
+
+If you want only vague/optional type checking, configure:
+```bash
+java -jar ./scripts/closureCompiler.jar \
+  --warning_level=VERBOSE;
+```
+
+## Tree shaking
+In order to enable tree-shaking configure:
+
+```bash
+java -jar ./scripts/closureCompiler.jar \
+  --entry_point=./src/js/index.js \
+  --dependency_mode=PRUNE \
+  --output_manifest=./dist/structure.txt # This file will contain a list of all files that have been used to compile the bundle (for debug purposes)
+```
+
+## Code minification / optimization
+Optimizations should provide code minification, even dead code elimination and some other optimizations.
+
+In order to run optimizations configure:
+
+```bash
+java -jar ./scripts/closureCompiler.jar \
+  --entry_point=./src/js/index.js \
+  --dependency_mode=PRUNE \ # The first optimization is to enable tree shaking here
+  --assume_function_wrapper=true \ # Allow more optimizations because I'm not using Window. For me this gave me (cca 50% bundle size reduction) in Fractals project. Finally GCC was able to minify all by variables
+  --compilation_level=ADVANCED # Ultra minification and optimizations
+```
+
+
+<Todo>If you use node_modules or external libraries. It is necessary to define externs. I do not know how yet. </Todo>
+
+
+Limitations of advanced OPT:
+
+1. You cannot mix `obj.name` and `obj['name']` property access styles
+2. You cannot use `getter/setters`
+3. window lib calls. If you are using a window library (e.g. `window.$()`) these calls will be renamed and will therefore fail. [Solution](https://developers.google.com/closure/compiler/docs/api-tutorial3#comptoex)
+4. building a library API is not possible, your API functions/methods will be renamed, or more likely removed as unused code. [Solution](https://developers.google.com/closure/compiler/docs/api-tutorial3#extocomp)
+5. Web workers also have problems - usually you send some payload to the worker, the problem is that AC changes attribute names on the object you send from main to worker (and back). (This is not documented anywhere)
+6. REST APIs (and client-server communication in general) - has the same problem as web workers, AC will mangle object property names on payload that you send to server and probably there also be problems with parsing data coming from server. (This is not documented anywhere)
+
+
+Less scary limitations:
+
+1. You cannot use `Object.defineProperties`
+2. You can use `this` only in prototype methods
+
+Limitations sources:
+1. https://developers.google.com/closure/compiler/docs/limitations
+2. https://developers.google.com/closure/compiler/docs/api-tutorial3
+
+## Source maps
+Source maps are a very useful tool during development. Without it there is no debugging. With GCC this is ridiculously hard to set up. ([reported](https://github.com/google/closure-compiler/issues/4043))
+
+```bash
+java -jar ./scripts/closureCompiler.jar \
+  --create_source_map=%outname%.map \
+  --source_map_include_content=true \ # This includes the source files inside the source map
+  --output_wrapper="%output%//# sourceMappingURL=bundle.js.map"
+```
+
+## ESNext support
+GCC has a pretty good [support of ESNext features](https://github.com/google/closure-compiler/wiki/Supported-features), but it is not on par with modern engines.
+
+❌ [public/private class fields are not supported](https://github.com/google/closure-compiler/issues/2731), you must define them in constructor instead! This means `arrow methods` are not supported either.
+
+## Transpilation
+<Todo>Input and output language</Todo>
+
+## Polyfills
+<Todo>polyfills / shims</Todo>
+
+## Cyclic dependencies
+
+<Fail>GCC allows cyclic dependencies between files and there is not option to prevent them. This is a ticking time bomb. (Webpack has the same problem, but at least there is a plugin to fix that.)</Fail>
+
+<Todo>how to prevent cycles?</Todo>
+
+## Compiling web workers
+[Using web workers is a pain.](./webworker) The main problems are caused by GCCs aggressive and code minification.
+
+## Compiling server calls
+<Todo>This is a BIG DEAL, this should be documented much better than how it is (see using libs for more info)</Todo>
+
+## Extra semantic checks
+The compiler has a smart feature where it can do more than just type checking, you can configure it to ban any *suspicious* that you like. It is called [JS Conformance](https://github.com/google/closure-compiler/wiki/JS-Conformance-Framework).
+
+## Code splitting
+[Code splitting is supported.](https://github.com/google/closure-compiler/wiki/Chunk-output-for-dynamic-loading)
+
+
+## Creating a library
+(UMD/CJS/ESM) how?
+https://developers.google.com/closure/compiler/docs/api-tutorial3#extocomp

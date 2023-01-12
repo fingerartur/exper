@@ -1,6 +1,6 @@
 
 # About `strictCheckTypes` compiler flag
-This flag is mentioned several times in the doc. I ran a quick analysis to find out if I want to enable it or not. The answer is not.
+This flag is mentioned several times in the doc. I ran a quick analysis to find out if I want to enable it or not. **The answer is yes!**
 
 Let's have a look at what the flag does:
 
@@ -69,14 +69,33 @@ const age = car.age // produces error. Previously it would work.
 ## Good
 1. It makes old-style classes `@struct`.
 2. It makes record types `@struct-like`
+3. It makes DOM `Element` type truthful
+4. It makes union types truthful (you cannot access an attribute unless you type cast on a single type)
 
 ## Bad
-1. I cannot work with DOM elements anymore. Having unchecked `Element` type was bad, but at least I could access its attributes, now I cannot.
-2. `Object` type is now useless, same story as with `Element`.
-3. Union types are now upside down. Instead of representing a set union they now represent set intersection.
+1. `Object` type is now useless. However, the good news is that `Object` type sucks whether `strictCheckTypes` is on or off, **don't use it**.
 
-## Conclusion
-`Object` type sucks whether `strictCheckTypes` is on or off, don't use it.
+## Problem with missing browser types
+There is a big, problem with `strictCheckTypes` and that is when DOM/browser types are wrong or missing. What to do then? It is the fault of authors of GCC but I am the one who has to deal with it.
 
-The strict check is great but there is simply no [reasonable way to make it work with the DOM](./report). So my advice is to enable it if you are not working with the DOM, otherwise keep it disabled.
+The "easy" solution is to suppress the warnings.
 
+```js
+/**
+ * @suppress {strictMissingProperties} `globalThis.onmessage` type missing in GCC
+ */
+globalThis.onmessage = (_event) => {
+  /**
+   * @suppress {reportUnknownTypes} for `_event`
+   */
+  const event = /** @type {MessageEvent} */ (_event);
+
+  if (!event.data) {
+    return
+  }
+  
+  // ...
+}
+```
+
+A more sophisticated solution would be to [define my own **externs** for DOM/browser APIs](./dom#how-to-define-missing-dom-types).

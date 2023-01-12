@@ -1,0 +1,130 @@
+import { Fail } from '@site/src/components/fail.js'
+import { Todo } from '@site/src/components/todo.js'
+import { Improve } from '@site/src/components/improve.js'
+import { Stars } from '@site/src/components/stars.js'
+
+# Compiling web workers
+[Working with web workers is a bit tricky](https://github.com/google/closure-compiler/wiki/How-do-I-make-closure-compiler-stop-breaking-my-API-by-removing-and-renaming-things%3F#how-do-i-use-an-externs-file-to-protect-my-api) - definitely does not work out-of-the-box. In essence you have to do three things. Build two bundles - main and worker, protect the interface between them, and enable type-checking in worker.
+
+## Build two bundles
+Building two bundles is pretty straight forward, the command I use is
+
+```
+# Build main
+java -jar ./scripts/closureCompiler.jar \
+  --entry_point=./src/js/index.js \
+  --js=./src/**.js \
+  --js=./src/**.apijs \
+  --dependency_mode=PRUNE \
+  --warning_level=VERBOSE \
+  --js_output_file=./dist/bundle.js \
+  --assume_function_wrapper=true \
+  --module_resolution=WEBPACK \
+  --compilation_level=ADVANCED \
+  --jscomp_error=checkDebuggerStatement \
+  --jscomp_error=unusedLocalVariables \
+  --jscomp_error=reportUnknownTypes \
+  --jscomp_error=strictCheckTypes;
+
+# Build worker
+java -jar ./scripts/closureCompiler.jar \
+  --dependency_mode=PRUNE \
+  --entry_point=./src/js/worker.js \
+  --js=./src/**.js \
+  --js=./src/**.apijs \
+  --warning_level=VERBOSE \
+  --js_output_file=./dist/worker.js \
+  --assume_function_wrapper=true \
+  --module_resolution=WEBPACK \
+  --compilation_level=ADVANCED \
+  --jscomp_error=checkDebuggerStatement \
+  --jscomp_error=unusedLocalVariables \
+  --jscomp_error=reportUnknownTypes \
+  --jscomp_error=strictCheckTypes;
+```
+
+Note that I use `*.apijs` for extern files. This will be explained below.
+
+## Protect the interface
+In debug mode everything is as smooth as butter, but when you enable `--compilation_level=ADVANCED`, all code gets mangled, this destroys the interface between your main thread and web worker. The main thread will run fine, but the communication between main and web worker will be destroyed so both messages going in and out will become unreadable and therefore useless.
+
+Let's illustrate that on an example:
+
+In essence your web worker code looks something like this:
+```js
+self.onmessage = (event) => {
+  const x = event.data.mySpecialData
+}
+```
+but compilation will mangle it up into something like this:
+```js
+self.onmessage = (e) => {
+  const x = e.data.d
+}
+```
+
+Your main thread looks something like this:
+```js
+const worker = new Worker('worker.js')
+worker.postMessage({ mySpecialData: { color: 'blue' }})
+```
+and compilation will mangle it up to something like this:
+```js
+const w = new Worker('worker.js')
+w.postMessage({ m: { c: 'blue' }}) // Note that main thread is mangled differently than Web worker even though they send each other the same payload (the type is the same)
+```
+
+This obviously breaks the contract/interface between the worker and the main thread and your code will not work anymore.
+
+### Solution
+To solve this what you have to do is to define **externs** on both sides of the interface - the API of your worker and for the API of worker-related code in your main thread. **Externs tell the compiler what must not get mangled.** The official use of externs it to define library APIs.
+
+Example externs for your worker (in this case both for worker and main)
+```js
+// worker.apijs - my convention is to name externs files .apijs
+
+/**
+ * @fileoverview externs for worker API
+ * @externs
+ */
+
+/**
+ * @typedef {{ mySpecialAttribute: string }}
+ */
+var MessageData;
+```
+And this will be used in worker code
+```js
+self.onmessage = (_event) => {
+  const event = /** @type {!MessageEvent<MessageData>} */ (_event)
+  // Note that I do not have to import MessageEvent because it is a GC type
+  // and neither MessageData because you do not need to import externs
+}
+```
+And in your main thread
+```js
+/**
+ * @type {MessageData}
+ */
+const data = { mySpecialData: { color: 'blue' }}
+const worker = new Worker('worker.js')
+worker.postMessage(data)
+```
+
+## Set up types in worker
+By default GCC thinks your worker file is just another main, that is a problem. Luckily I know how to fix that.
+
+```js
+/**
+ * @suppress {checkTypes}
+ * @type {!DedicatedWorkerGlobalScope}
+ */
+var selfApi = self;
+
+selfApi.onmessage = (_event) => {
+  /**
+   * @suppress {reportUnknownTypes}
+   */
+  const event = /** @type {!MessageEvent<WorkerCommand>} */ (_event);
+}
+```

@@ -1,17 +1,42 @@
 # Issues to report
 
-1. Generic Objects [should](https://github.com/google/closure-compiler/wiki/Types-in-the-Closure-Type-System) be supported but does not work (e.g. `Object<string, number>`)
+Compiler Version: v20221102
+
+Build command:
+```bash
+java -jar ./scripts/closureCompiler.jar \
+  --entry_point=./src/js/index.js \
+  --js=./src/**.js \
+  --dependency_mode=PRUNE \
+  --warning_level=VERBOSE \
+  --js_output_file=./dist/bundle.js \
+  --module_resolution=WEBPACK \
+  --compilation_level=ADVANCED \
+  --jscomp_error=checkDebuggerStatement \
+  --jscomp_error=unusedLocalVariables \
+  --jscomp_error=reportUnknownTypes \
+  --jscomp_error=strictCheckTypes;
+```
+
+1. [REPORTED](https://github.com/google/closure-compiler/issues/4023) Generic Objects [should](https://github.com/google/closure-compiler/wiki/Types-in-the-Closure-Type-System) be supported but does not work (e.g. `Object<string, number>`)
   ```js
+  /**
+   * @type {Object<string>}
+    */
+    const x = {
+      hello: 555, // This should raise error, but does not
+    }
+    
     /**
      * @type {Object<string,number>}
      */
     const x = {
       hello: 1,
-      name: "artur" // This should raise error but does not
+      name: "Jhon" // This should raise error, but does not
     }
   ```
   passes without error
-2. `typeof` operator [should](https://github.com/google/closure-compiler/wiki/Types-in-the-Closure-Type-System) be supported but does not work
+2. [REPORTED](https://github.com/google/closure-compiler/issues/4024) `typeof` operator [should](https://github.com/google/closure-compiler/wiki/Types-in-the-Closure-Type-System) be supported but does not work
   ```js
     const x = {
     name: "Bat",
@@ -39,7 +64,7 @@
       13|   }
           ^^^
   ```
-3. `all` type [should not](https://github.com/google/closure-compiler/wiki/Types-in-the-Closure-Type-System#the-javascript-type-language) allow access of its properties, but in fact it does without any warning/error.
+3. [REPORTED](https://github.com/google/closure-compiler/issues/4025) `all` type [should not](https://github.com/google/closure-compiler/wiki/Types-in-the-Closure-Type-System#the-javascript-type-language) allow access of its properties, but in fact it does without any warning/error.
     ```js
     /**
     * @type {*}
@@ -51,11 +76,8 @@
     const y = x.toString() // This should raise error but does not
     ```
 
-    Actually the doc here is wrong. It says : * (*) Indicates that the variable can take on any type. However, it is an error to attempt to do operations on a value of this type or access any properties on it. You also cannot assign it to any other type variable without a cast.*
-    
-    But in reality you can do operations just fine. Not only that, in my example we can see that `toString` is checked that it exists on "some" type, but it's return value is NOT checked. That is another issue.
-4. https://github.com/google/closure-compiler/issues/641
-5. Arrays are assumed to never be empty, aka GCC does not warn that value at index might be undefined
+    Doc seems to be written with the assumption that `strictCheckTypes` `strictMissingProperties` is used.
+4. [REPORTED](https://github.com/google/closure-compiler/issues/4026) Arrays are assumed to never be empty, aka GCC does not warn that value at index might be undefined
   ```js
     /**
      * @type {Array<number>}
@@ -66,21 +88,14 @@
     */
     const x = values[1000] // This should raise error. x is obviously undefined, but its type is number
   ```
-1. HTMLCollection is wrongly assumed to never be empty, aka GCC does not warn that value in index might be undefined
+5. [REPORTED](https://github.com/google/closure-compiler/issues/4027) HTMLCollection access is wrongly assumed to never be undefined
   ```js
     /**
     * @type {!Element}
     */
     const div = document.getElementsByTagName("div")[0] // here should be a warning that value is potentially undefined
   ```
-1. Advanced HTML types (such as `HTMLCanvasElement`, `HTMLDivElement`, `HTMLElement`, ...) do not exist, but because of vscode intellisense programmers will attempt to use them. This should cause error `JSC_UNRECOGNIZED_TYPE_ERROR`, which tells me no, they do not exists, this is not Typescript. However GCC produces no such error and it happily pretends that everything is OK.
-  ```js
-  /**
-   * @type {HTMLCanvasElement}
-   */
-  const div = document.getElementById('myElement');
-  ```
-1. GC wrongly assumes that `Map.get()` always returns a defined value
+1. [REPORTED](https://github.com/google/closure-compiler/issues/4029) GC wrongly assumes that `Map.get()` always returns a defined value
   ```js
   /**
    * @type {Map<string, number>}
@@ -94,7 +109,7 @@
    */
   const value = map.get('jack') // should produce error, value is obviously undefined but GC thinks it is number
   ```
-9. Interfaces do not check return type of method when you do not call `return`
+8. [REPORTED](https://github.com/google/closure-compiler/issues/4030) Interfaces do not check return type of method when you do not call `return`
   ```js
     /** @interface */
     function ISerializable() {};
@@ -108,7 +123,7 @@
     function Car() {}
     Car.prototype.serialize = function() {}; // Does not produce error, even though it should return a string and it most definitely does not 
   ```
-10. Typedefs (or *record types*) do not support recursion but instead of error, the recursive attribute just gets converted to `any` type.
+9. [REPORTED](https://github.com/google/closure-compiler/issues/4031) Typedefs (or *record types*) do not support recursion but instead of error, the recursive attribute just gets converted to `any` type.
   ```js
     /**
      * @typedef {{ name: string, next: Car }} // should produce error, but instead it treats `.next` as `?`
@@ -125,7 +140,7 @@
       }
     }
   ```
-11.  Union types in record type must be in brackets, otherwise GCC fails to recognize it
+10. [REPORTED](https://github.com/google/closure-compiler/issues/4032) Union types must be in brackets, otherwise GCC fails to recognize it
   ```js
       /**
        * @type {{
@@ -139,63 +154,40 @@
       //   4| *  age: number|undefined,
       //                    ^
   ```
-12. It is impossible to define unchecked object type,
+11. [REPORTED](https://github.com/google/closure-compiler/issues/4033) It is impossible to define empty record type
   ```js
-  /**
-   * @type {{}} // produces error.
-   */
-  const x = {}
+    /**
+     * @type {{}} // produces error.
+    */
+    const x = {}
   ``` 
   ({} type would be useful, because code developes over time, let's say you have a function with options, but you don't know what options yet)
 
   the closest you can get is
   ```js
-  /**
-   * @type {{_: undefined}}
-   */
-  const x = {}
+    /**
+     * @type {{_: undefined}}
+    */
+    const x = {}
   ```
-1.   `typeof` expressions are not type checked
-
+12. [REPORTED](https://github.com/google/closure-compiler/issues/4034) `typeof` params are not type checked
 ```js
 const x = _data.somethingMadeUp  // produces error
 const y = typeof _data.somethingMadeUp // ok
 ```
-14. @export is [deprecated or best avoided](https://developers.google.com/closure/compiler/docs/externs-and-exports). This should be also mentioned in the wiki, e.g. [here](https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler#export-export-sometyp)
-16. Record types allow access to undeclared attributes
+13. [REPORTED](https://github.com/google/closure-compiler/issues/4035) Documentation on Window type is missing. It should be here https://github.com/google/closure-compiler/wiki/Types-in-the-Closure-Type-System. The same goes for NodeList of Element
+14. [REPORTED](https://github.com/google/closure-compiler/issues/4037) suppressing errors is very difficult because error JSC_STRICT_INEXISTENT_PROPERTY, why do I have to go to suppression list, why does not the CLI tell me the supression group immediately?
+https://github.com/google/closure-compiler/wiki/@suppress-annotations
+15. [REPORTED](https://github.com/google/closure-compiler/issues/4037) There should be a way to suppress all warnings on a line or in one file (like //@ts-ignore and //@ts-nocheck) it is useful
+16. [REPORTED](https://github.com/google/closure-compiler/issues/4038) Everything from [./compiler-flags](./compiler-flags)
+17. [REPORTED](https://github.com/google/closure-compiler/issues/4039) Lacking documentation of modern ES6 syntax with interface and implements
+18. @export is [deprecated or best avoided](https://developers.google.com/closure/compiler/docs/externs-and-exports). This should be also mentioned in the wiki, e.g. [here](https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler#export-export-sometyp)
+19. [REPORTED](https://github.com/google/closure-compiler/issues/4040) Type checking of promises does not work
+20. [REPORTED](https://github.com/google/closure-compiler/issues/4041) Array methods such as filter,map, forEach, reduce are not getting type-checked
+21. [REPORTED](https://github.com/google/closure-compiler/issues/4042) Object rest operator does not get type checked correctly.
+22. [REPORTED](https://github.com/google/closure-compiler/issues/4043) Configuring source maps is a pain
 
-```js
-/**
- * @type {{ name: string }}
- */
-const x = {
-  name: 'hello',
-}
 
-x.surname = 'xxxx'
-```
 
-*This cannot be fixed with @struct, only with strictMissingProperties flag.*
-15. Documentation on Window type is missing. It should be here https://github.com/google/closure-compiler/wiki/Types-in-the-Closure-Type-System.
-16. `strictCheckTypes` and `strictMissingProperties` should be documented much more in detail. And when you document it you will realize that it breaks the functionality of `*` all type. All type should be the same as `?` according to documentation, that is not the case with strictMissingProperties. `?` stays the same but on `*` you cannot access any attributes.
-17. Documentation of `*` is wrong. It seems to be written with the assumption that `strictCheckTypes` `strictMissingProperties` is used
-18. Union types sometimes convert attributes to unknown (?) type. As in this example:
-
-```js
-/**
- * @typedef {{ name: string} | {age: number, name: string}}
- */
-var Car;
-
-/**
- * @type {Car}
- */
-const car = { name: 'BMW'}
-car.age.toUpperCase() // should error, because car.age is a number
-```
-19.  There is no way to extend the `Element`. Which is a big problem when using `strictCheckTypes` because this means you cannot use the DOM. If Element was an interface it would be possible to extend it and the situation would not be so bad.
-20. Everything from [./compiler-flags](./compiler-flags)
-21. There should be a way to suppress all warnings on a line or in one file (like //@ts-ignore and //@ts-nocheck) it is useful
-  
-## TODO
-- It is possible that some of the problems here fill go away when certain flags from here are enabled https://github.com/google/closure-compiler/wiki/Warnings
+## Existing issues
+1. `!Type` behavior should be configurable - https://github.com/google/closure-compiler/issues/641
