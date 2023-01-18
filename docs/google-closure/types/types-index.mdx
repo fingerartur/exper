@@ -351,13 +351,17 @@ const car = null; // produces error
 - Arrays are [wrongly assumed to never be empty](./report)
 - HTML collection is [wrongly assumed to never be empty](./report)
 
-### Array callback methods are not type checked
-Array methods such as **filter, map, forEach, reduce, etc.**  are not type-checked. The type of the callback is not inferred! ([reported](https://github.com/google/closure-compiler/issues/4041))
+### Arrays have some problems with type checking
+Array literals are not type checked!
 
 ```js
-// GCC thinks `item` is `unknown` type!
-const positive = [-1,0,1,2,3,4].filter((item) => item > 2);
+// GCC does not know this is array of number
+[-1,0,1,2,3,4]
 ```
+
+`Array.reduce` is not type checked at all.
+
+
 ### DOM type check sucks
 In short DOM type checking only starts to work correctly when `strictCheckTypes` compiler flag is enabled. Then is is pretty fine, not perfect, but fine.
 

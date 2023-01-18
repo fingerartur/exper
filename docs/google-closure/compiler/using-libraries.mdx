@@ -12,6 +12,18 @@ Libraries are used via externs. Externs may define types, but they most importan
 - [official - externs](https://developers.google.com/closure/compiler/docs/externs-and-exports) - general idea, [how to define them](https://developers.google.com/closure/compiler/docs/externs-and-exports#externs)
 - [@externs annotation](https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler#externs)
 - [advanced notes on externs](https://github.com/google/closure-compiler/wiki/How-do-I-make-closure-compiler-stop-breaking-my-API-by-removing-and-renaming-things%3F) - good explanation of when externs are needed. It mentions that server calls, web workers need externs. It mentions that externs do not need to be imported (they are global). It shows example of how to do externs for web worker
+- [advanced externs syntax](https://blogs.missouristate.edu/web/2013/09/12/how-to-write-closure-compiler-extern-files-part-1-the-basics/) TODO should be on wiki
+
+## Docs2 on node_modules
+
+- [module system doc](https://github.com/google/closure-compiler/wiki/JS-Modules) - describes how to import from node_modules, however no concrete example!
+
+<Todo>The big problem is NPM libs may have 10 dependencies and Apparently I need to specify package.json, (and probably index.js) for each of them .... wtf? report this</Todo>
+
+- [dependency mode doc](https://github.com/google/closure-compiler/wiki/Managing-Dependencies) - basically describes file tree shaking mechanisms
+
+- [stack overflow question](https://stackoverflow.com/questions/41832896/google-closure-compiler-process-node-modules) - Closest to a good explanation is here. TODO i think that the --js for lib files did not work for me! try again
+  
 
 ## Existing extern type definitions
 ### Built-ins
@@ -30,6 +42,13 @@ Libraries are used via externs. Externs may define types, but they most importan
 2. how to create externs file for a CJS library?
 3. If extern types are global, what if I have two CJS libraries and each exports the same `merge` function?
 4. A big mistake in externs is the following: you use ESM modules, but you need externs to call REST API, but your payload uses a complex type that has attributes of type `Car` and `Car`, both of these are completely different types. But externs file works globally, so now wtf will happen? This situation is not supported!
+5. how does tree shaking work with ESM libraries?
+
+- how consuming a lib with multiple sub-dependencies looks like
+- CJS problem - https://github.com/google/closure-compiler/issues/3360
+
+- [how to turn off warning for a file](https://stackoverflow.com/questions/47668995/google-closure-suppress-warning-messages-for-a-particular-file) - used it for lodash
+- TODO https://github.com/google/closure-compiler/issues/3714
 
 
 # TODO report
@@ -40,20 +59,9 @@ Libraries are used via externs. Externs may define types, but they most importan
   - https://github.com/google/closure-compiler/tree/master/contrib/externs/youtubeplayer.js
 - FAQ https://github.com/google/closure-compiler/wiki/FAQ#how-do-i-write-an-externs-file does not actually describe how to create an externs file, especially not for a CJS library
 - Documentation of externs is spread across 4 pages (see #Doc)
+- what is the difference between [NODE resolution mode and WEBPACK](https://github.com/google/closure-compiler/wiki/Flags-and-Options#js-modules)?
 
-
-
-# TODO
-
-
-
-- CJS problem - https://github.com/google/closure-compiler/issues/3360
-
-
-
-
-
-### Using Window, UMD(Window) libs
+## Using Window, UMD(Window) libs
 Don't run it through the compiler, simply include it in a script tag in HTML, old style. The only thing you need to do now is to [define externs as explained here](https://developers.google.com/closure/compiler/docs/externs-and-exports#externs) to prevent mangling, and that's it.
 
 Example of my micro library: (not part of compilation)
@@ -92,38 +100,124 @@ window.fuck.you() // raises error
 
 <Todo>report this. At least it should be documented, because this is a nonsense situation. The library is literally defined on window, externs are global, etc window access does not work</Todo>
 
-### Using CJS, ESM, UMD(CJS)
-<Todo>libs</Todo>
-- TODO defining externs for a non-namespaced lib
-
-## Using AMD
-- I think there is no support
 
 
+## Using CJS, ESM, UMD(CJS)
+
+### Case study - Lodash (CJS)
+I can import lodash with `--compilation_level=SIMPLE` I use the following extra compiler flags
+
+```
+--process_common_js_modules=true \
+--module_resolution=NODE \
+--js=node_modules/lodash/package.json \
+--js=node_modules/lodash/**.js \
+--hide_warnings_for=node_modules/lodash \
+```
+
+The code looks like this:
+```js
+/**
+* @typedef {{
+*  _ : {
+*      add: function(number, number): number
+*    },
+* }}
+*/
+var Lodash;
+
+const lodashFile = /** @type {Lodash} */ (require('lodash'))
+const lodash = lodashFile._
+const result = lodash.add(1, 2);
+```
+
+<Todo>However, with --compilation_level=ADVANCED it does not work, I am getting a runtime error so obviously, GCC mangled it up so badly that it broke.</Todo>
+
+```
+Uncaught TypeError: Cannot set properties of undefined (setting 'placeholder')
+```
+
+### Case study - merge
+[merge](https://www.npmjs.com/package/merge)
+
+Problem with this code: exports undefined - causes not only type checking error but also runtime error. What is more, it causes a type checking error even when I hide warnings `  --hide_warnings_for=node_modules/merge`
+
+<Todo>report</Todo>
+
+```js
+Object.defineProperty(exports, "__esModule", { value: true });
+module.exports = exports = main; exports not defined;
+```
+
+It seems that it all comes down to the fact that GCC CJS support is bugged. It defines and recognizes the `module/module.exports` variable, but not the `exports`. [Here is the documentation of CJS, and it says that the export variable must be supported by the module engine.](https://nodejs.org/api/modules.html#exports-shortcut).
+
+The merge library assumes that `exports` is defined as it should be in the context of CJS, and that is where it fails. If I import this library with Webpack everything works perfectly, as expected.
+
+### Case study - array-flatten
+[array-flatten](https://www.npmjs.com/package/array-flatten)
+
+In simple mode works fine
+```
+--compilation_level=SIMPLE \
+--process_common_js_modules=true \
+--module_resolution=NODE \
+--js=node_modules/array-flatten/package.json \
+--js=node_modules/array-flatten/**.js \
+--hide_warnings_for=node_modules \
+```
+
+```js
+/**
+* @typedef {{ flatten: function(Array): Array}}
+*/
+var ArrayFlatten;
+
+const arrayFlat = /** @type {ArrayFlatten} */ (require('array-flatten'))
+console.log('arrayFlat: ', arrayFlat.flatten([1,2,3,4, [5,6,7]]));
+```
+
+It works also in ADVANCED mode. And as we can see in the bundle, the code of array-flatten library gets mangled up.
+
+From this code in node_modules
+```js
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+/**
+ * Flatten an array indefinitely.
+ */
+function flatten(array) {
+    var result = [];
+    $flatten(array, result);
+    return result;
+}
+exports.flatten = flatten;
+/**
+ * Internal flatten function recursively passes `result`.
+ */
+function $flatten(array, result) {
+    for (var i = 0; i < array.length; i++) {
+        var value = array[i];
+        if (Array.isArray(value)) {
+            $flatten(value, result);
+        }
+        else {
+            result.push(value);
+        }
+    }
+}
+//# sourceMappingURL=index.js.map
+```
+It is mangle into this form:
+```js
+function c(d,e){for(var a=0;a<d.length;a++){var b=d[a];Array.isArray(b)?c(b,e):e.push(b)}};
+```
 
 
-## How to import a library (CJS, UMD)
-I have a big problem finding documentation on this. There are bits and pieces here and there but never the full picture and never all the information.
-
-[Doc1](https://github.com/google/closure-compiler/wiki/JS-Modules)
-[Doc2](https://github.com/google/closure-compiler/wiki/Managing-Dependencies)
-Closest to a good explanation is [here](https://stackoverflow.com/questions/41832896/google-closure-compiler-process-node-modules).
-
-By trial and error I managed to get it work with `lodash` like this:
-
-1. `--process_common_js_modules`, because most libs CJS or UMD which is compatible with CJS
-2. `--module_resolution=WEBPACK`, otherwise it is not possible to import from `node_modules` (default resolution is BROWSER and that takes only relative paths)
-3. `--js=node_modules/lodash/package.json --js=node_modules/lodash/**.js` for the compiler [to find lodash](https://stackoverflow.com/questions/41832896/google-closure-compiler-process-node-modules). This is not well documented at all.
-4. `--hide_warnings_for=node_modules/lodash` to make sure closure does not type-check the library itself. Again [not documented](https://stackoverflow.com/questions/47668995/google-closure-suppress-warning-messages-for-a-particular-file).
-
-TODO something does not seem right because vscode/TS types are off. Actually there seems to be an error in the types, not in the import mechanism.
-TODO [about externs](https://stackoverflow.com/questions/21122259/creating-closure-compiler-extern)
-  - https://blogs.missouristate.edu/web/2013/09/12/how-to-write-closure-compiler-extern-files-part-1-the-basics/ I failed to define externs for lodash, this article says literally nothing!
 
 ## Some libraries do not get imported!
 - [merge](https://www.npmjs.com/package/merge) - Fails. seems to be CJS. Direct import works
 - [xtend](https://www.npmjs.com/package/xtend) - Fails. seems to be CJS. Direct import works
-- [array-flatten](https://www.npmjs.com/package/array-flatten) - Fails. seems to be CJS
+- - Fails. seems to be CJS
 - [react](https://www.npmjs.com/package/react) - here the problem is process.env in index file
   ```js
   'use strict';
@@ -152,8 +246,6 @@ TODO [about externs](https://stackoverflow.com/questions/21122259/creating-closu
   console.log('libtypes: ', libtypes);
   ```
 
-TODO https://github.com/google/closure-compiler/issues/3714
-
-## How to import Node.js stdlib
+## How to import Node.js stdlib - TODO
 
 1. Importing stdlib in node.js is [not supported](https://github.com/google/closure-compiler/issues/3719), you have to do a big workaround (fake node_modules basically)
