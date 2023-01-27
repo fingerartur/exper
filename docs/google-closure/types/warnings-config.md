@@ -18,7 +18,7 @@ Type compiler does not checks all the types that it could. Some type checks are 
 9.  `unusedPrivateMembers` 🚨 does nothing
 10. `missingProperties` 🚨 - do not know what it means
 11. `strictModuleDepCheck` 🚨 - do not know what it means
-12. `typeInvalidation` 🚨 - do not know what it means
+12. `typeInvalidation` 🚨 - do not know what it means (probably related to this http://closuretools.blogspot.com/2011/01/property-by-any-other-name-part-3.html)
 13. `undefinedNames` 🚨 - UKNOWN to compiler
 
 ### unusedPrivateMembers

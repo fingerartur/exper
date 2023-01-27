@@ -3,27 +3,21 @@ import { Todo } from '@site/src/components/todo.js'
 import { Improve } from '@site/src/components/improve.js'
 import { Stars } from '@site/src/components/stars.js'
 
-
 # Using libraries
 Libraries are used via externs. Externs may define types, but they most importantly define the libs API and prevent GCC from mangling this code.
+
+GCC works well with window libraries (that are not part of compilation). But trying to use CJS libraries from `node_modules` is a terrible mess that ultimately works only if you are very lucky.
 
 ## Docs
 - [official - advanced compilation and externs](https://developers.google.com/closure/compiler/docs/) - general idea
 - [official - externs](https://developers.google.com/closure/compiler/docs/externs-and-exports) - general idea, [how to define them](https://developers.google.com/closure/compiler/docs/externs-and-exports#externs)
 - [@externs annotation](https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler#externs)
 - [advanced notes on externs](https://github.com/google/closure-compiler/wiki/How-do-I-make-closure-compiler-stop-breaking-my-API-by-removing-and-renaming-things%3F) - good explanation of when externs are needed. It mentions that server calls, web workers need externs. It mentions that externs do not need to be imported (they are global). It shows example of how to do externs for web worker
-- [advanced externs syntax](https://blogs.missouristate.edu/web/2013/09/12/how-to-write-closure-compiler-extern-files-part-1-the-basics/) TODO should be on wiki
-
-## Docs2 on node_modules
-
-- [module system doc](https://github.com/google/closure-compiler/wiki/JS-Modules) - describes how to import from node_modules, however no concrete example!
-
-<Todo>The big problem is NPM libs may have 10 dependencies and Apparently I need to specify package.json, (and probably index.js) for each of them .... wtf? report this</Todo>
-
+- [advanced externs syntax](https://blogs.missouristate.edu/web/2013/09/12/how-to-write-closure-compiler-extern-files-part-1-the-basics/)
 - [dependency mode doc](https://github.com/google/closure-compiler/wiki/Managing-Dependencies) - basically describes file tree shaking mechanisms
+- [module system doc](https://github.com/google/closure-compiler/wiki/JS-Modules) - describes how to import from node_modules
+- [example of how to import CJS](https://stackoverflow.com/questions/41832896/google-closure-compiler-process-node-modules) on stackoverflow
 
-- [stack overflow question](https://stackoverflow.com/questions/41832896/google-closure-compiler-process-node-modules) - Closest to a good explanation is here. TODO i think that the --js for lib files did not work for me! try again
-  
 
 ## Existing extern type definitions
 ### Built-ins
@@ -37,39 +31,15 @@ Libraries are used via externs. Externs may define types, but they most importan
 
 
 
-# TODO find out
-1. how to import a CJS library
-2. how to create externs file for a CJS library?
-3. If extern types are global, what if I have two CJS libraries and each exports the same `merge` function?
-4. A big mistake in externs is the following: you use ESM modules, but you need externs to call REST API, but your payload uses a complex type that has attributes of type `Car` and `Car`, both of these are completely different types. But externs file works globally, so now wtf will happen? This situation is not supported!
-5. how does tree shaking work with ESM libraries?
-
-- how consuming a lib with multiple sub-dependencies looks like
-- CJS problem - https://github.com/google/closure-compiler/issues/3360
-
-- [how to turn off warning for a file](https://stackoverflow.com/questions/47668995/google-closure-suppress-warning-messages-for-a-particular-file) - used it for lodash
-- TODO https://github.com/google/closure-compiler/issues/3714
-
-
-# TODO report
-- this page https://github.com/google/closure-compiler/wiki/Externs-For-Common-Libraries many links do not work
-  - https://github.com/firebase/firebase-js-sdk/tree/master/packages/firebase/externs
-  - https://github.com/steida/react-externs
-  - https://github.com/steida/react-externs/blob/master/externs.js
-  - https://github.com/google/closure-compiler/tree/master/contrib/externs/youtubeplayer.js
-- FAQ https://github.com/google/closure-compiler/wiki/FAQ#how-do-i-write-an-externs-file does not actually describe how to create an externs file, especially not for a CJS library
-- Documentation of externs is spread across 4 pages (see #Doc)
-- what is the difference between [NODE resolution mode and WEBPACK](https://github.com/google/closure-compiler/wiki/Flags-and-Options#js-modules)?
-
 ## Using Window, UMD(Window) libs
 Don't run it through the compiler, simply include it in a script tag in HTML, old style. The only thing you need to do now is to [define externs as explained here](https://developers.google.com/closure/compiler/docs/externs-and-exports#externs) to prevent mangling, and that's it.
 
 Example of my micro library: (not part of compilation)
 ```html
 <script>
-  window.fuck = {
-    you: (extra) => { console.info('fuck you' + extra) },
-    them: () => { console.info('fuck you') }
+  window.greet = {
+    one: (name) => { console.info('hello' + name) },
+    many: () => { console.info('hi all') }
   }
 </script>
 ```
@@ -77,175 +47,29 @@ Example of my micro library: (not part of compilation)
 Example of externs file: This file can be anywhere in the directory structure, the only thing you need to do is to pass it to the compiler via `--js` just like any normal JS file.
 ```js
 /**
- * @fileoverview Externs for fuck lib @externs
+ * @fileoverview Externs for greet lib @externs
  */
-const fuck = {};
+const greet = {};
 /**
- * @param {string} extra
+ * @param {string} name
  */
-fuck.you = function(extra) {};
-fuck.them = function() {};
+greet.one = function(name) {};
+greet.many = function() {};
 ```
 Example of code:
 ```js
-// Notice there is no import, `fuck` namespace/variable is global
-fuck.you('bro')
+// Notice there is no import, `greet` namespace/variable is global
+greet.one('John')
 ```
-Here is an interesting caveat, even though your `fuck` namespace is global and therefore should exist on `window`, GCC type-checking does not allow you to call it via window.
+Here is an interesting caveat, even though your `greet` namespace is global and therefore should exist on `window`, GCC type-checking does not allow you to call it via window.
 
 ```js
-window.fuck.you() // raises error
-// WARNING - [JSC_INEXISTENT_PROPERTY] Property fuck never defined on Window
+window.greet.many() // raises error
+// WARNING - [JSC_INEXISTENT_PROPERTY] Property greet never defined on Window
 ```
 
 <Todo>report this. At least it should be documented, because this is a nonsense situation. The library is literally defined on window, externs are global, etc window access does not work</Todo>
 
+## Using CJS, UMD(CJS)
+[GCC claims to support CJS and UMD modules](https://github.com/google/closure-compiler/wiki/JS-Modules#commonjs-modules) however it does not work on so many levels that I will have to [dedicate a whole chapter to it](./using-cjs-libraries).
 
-
-## Using CJS, ESM, UMD(CJS)
-
-### Case study - Lodash (CJS)
-I can import lodash with `--compilation_level=SIMPLE` I use the following extra compiler flags
-
-```
---process_common_js_modules=true \
---module_resolution=NODE \
---js=node_modules/lodash/package.json \
---js=node_modules/lodash/**.js \
---hide_warnings_for=node_modules/lodash \
-```
-
-The code looks like this:
-```js
-/**
-* @typedef {{
-*  _ : {
-*      add: function(number, number): number
-*    },
-* }}
-*/
-var Lodash;
-
-const lodashFile = /** @type {Lodash} */ (require('lodash'))
-const lodash = lodashFile._
-const result = lodash.add(1, 2);
-```
-
-<Todo>However, with --compilation_level=ADVANCED it does not work, I am getting a runtime error so obviously, GCC mangled it up so badly that it broke.</Todo>
-
-```
-Uncaught TypeError: Cannot set properties of undefined (setting 'placeholder')
-```
-
-### Case study - merge
-[merge](https://www.npmjs.com/package/merge)
-
-Problem with this code: exports undefined - causes not only type checking error but also runtime error. What is more, it causes a type checking error even when I hide warnings `  --hide_warnings_for=node_modules/merge`
-
-<Todo>report</Todo>
-
-```js
-Object.defineProperty(exports, "__esModule", { value: true });
-module.exports = exports = main; exports not defined;
-```
-
-It seems that it all comes down to the fact that GCC CJS support is bugged. It defines and recognizes the `module/module.exports` variable, but not the `exports`. [Here is the documentation of CJS, and it says that the export variable must be supported by the module engine.](https://nodejs.org/api/modules.html#exports-shortcut).
-
-The merge library assumes that `exports` is defined as it should be in the context of CJS, and that is where it fails. If I import this library with Webpack everything works perfectly, as expected.
-
-### Case study - array-flatten
-[array-flatten](https://www.npmjs.com/package/array-flatten)
-
-In simple mode works fine
-```
---compilation_level=SIMPLE \
---process_common_js_modules=true \
---module_resolution=NODE \
---js=node_modules/array-flatten/package.json \
---js=node_modules/array-flatten/**.js \
---hide_warnings_for=node_modules \
-```
-
-```js
-/**
-* @typedef {{ flatten: function(Array): Array}}
-*/
-var ArrayFlatten;
-
-const arrayFlat = /** @type {ArrayFlatten} */ (require('array-flatten'))
-console.log('arrayFlat: ', arrayFlat.flatten([1,2,3,4, [5,6,7]]));
-```
-
-It works also in ADVANCED mode. And as we can see in the bundle, the code of array-flatten library gets mangled up.
-
-From this code in node_modules
-```js
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-/**
- * Flatten an array indefinitely.
- */
-function flatten(array) {
-    var result = [];
-    $flatten(array, result);
-    return result;
-}
-exports.flatten = flatten;
-/**
- * Internal flatten function recursively passes `result`.
- */
-function $flatten(array, result) {
-    for (var i = 0; i < array.length; i++) {
-        var value = array[i];
-        if (Array.isArray(value)) {
-            $flatten(value, result);
-        }
-        else {
-            result.push(value);
-        }
-    }
-}
-//# sourceMappingURL=index.js.map
-```
-It is mangle into this form:
-```js
-function c(d,e){for(var a=0;a<d.length;a++){var b=d[a];Array.isArray(b)?c(b,e):e.push(b)}};
-```
-
-
-
-## Some libraries do not get imported!
-- [merge](https://www.npmjs.com/package/merge) - Fails. seems to be CJS. Direct import works
-- [xtend](https://www.npmjs.com/package/xtend) - Fails. seems to be CJS. Direct import works
-- - Fails. seems to be CJS
-- [react](https://www.npmjs.com/package/react) - here the problem is process.env in index file
-  ```js
-  'use strict';
-
-  if (process.env.NODE_ENV === 'production') {
-    module.exports = require('./cjs/react.production.min.js');
-  } else {
-    module.exports = require('./cjs/react.development.js');
-  }
-
-  ```
-  But a direct import works. Again it seems CJS
-  ```js
-  const react = require('react/cjs/react.production.min.js')
-  console.log('react: ', react);
-  ```
-- [redux](https://www.npmjs.com/package/redux). Fails. seems to be UMD.
-  But a direct import works.
-  ```js
-  const redux = require('redux/dist/redux.js')
-  console.log('redux: ', redux);
-  ```
-- my library build with webpack as commonjs-static. Finally a direct import works
-  ```js
-  const libtypes = require('libtypes/dist/index.js')
-  console.log('libtypes: ', libtypes);
-  ```
-
-## How to import Node.js stdlib - TODO
-
-1. Importing stdlib in node.js is [not supported](https://github.com/google/closure-compiler/issues/3719), you have to do a big workaround (fake node_modules basically)

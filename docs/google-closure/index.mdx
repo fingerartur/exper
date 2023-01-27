@@ -27,10 +27,10 @@ The documentation of GC is a big mess. Something is in official doc, something o
 - [@suppression groups](https://github.com/google/closure-compiler/wiki/@suppress-annotations)
 - [GCC github](https://github.com/google/closure-compiler)
 
-**TODO**
-- github homepage https://github.com/google/closure-compiler
-- GC blog http://closuretools.blogspot.com/2011/01/property-by-any-other-name-part-3.html
-- Discuss
+## Installation
+- [Java (.jar) executable](https://mvnrepository.com/artifact/com.google.javascript/closure-compiler)
+- [Node.js CLI](https://www.npmjs.com/package/google-closure-compiler)
+- [Webpack plugin](https://github.com/webpack-contrib/closure-webpack-plugin)
 
 ## Stdlib
 <Todo>What is in there</Todo>
@@ -47,7 +47,7 @@ Sadly it lacks [Type Utilities](https://www.typescriptlang.org/docs/handbook/uti
 ### Type inference
 The type checking can do a little bit of type inference, but just a little bit. **It's strength is comparable to that of Flow**, but it is a far cry from Typescript. Here is a [little analysis](./type-inference).
 
-<Fail>This means every variable, attribute, parameter and return type, everything has to be explicitly typed. That is a lot of boiler plate.</Fail>
+<Fail>There is a lot of boiler plate (compared to TS) - every variable, attribute, parameter and return type, everything has to be explicitly typed.</Fail>
 
 ### IDE support
 <Fail>There is not IDE support.</Fail>
@@ -64,30 +64,45 @@ The compiler is trying to do the same job as let's say Webpack with a type check
 
 [Read all about the compiler.](./compiler/index-compiler)
 
+# Trying to convert GC code to JSDOC TS code
+1. [JSDOC TS 1](https://www.typescriptlang.org/docs/handbook/type-checking-javascript-files.html)
+2. [JSDOC TS 2](https://www.typescriptlang.org/docs/handbook/jsdoc-supported-types.html#unsupported-tags)
+JSDOC TS type system is stronger and in general a superset of GCC types system.
 
-# TODO
-1. Try to convert to TS JSDoc + ts-loader + webpack workflow
-   1. [intro](https://www.typescriptlang.org/docs/handbook/type-checking-javascript-files.html)
-   2. [reference](https://www.typescriptlang.org/docs/handbook/jsdoc-supported-types.html#unsupported-tags)
-   3. List all the advantages that this will bring
-   4. How to mix .ts and .jsdoc files in one build process?
-2. Compare webpack and GCC
-3. TODO array pop
+## Idea
+Convert GCC code to JSDOC TS and use webpack + ts-loader to build it. Enjoy much better type checking, IDE support (live), less code, more typed libraries, auto generated types. On the webpack side enjoy a world of plugins.
 
-# TODO
-1. Finish WIP
-   1. GC by default allows access to [subcalss props but they are unknown (only old style defined classes such as Element) ](https://github.com/google/closure-compiler/wiki/Conformance:-Sources-of-%22unknown%22) is a similar fashion it allows access to any attributes of union type but they are unkown as well
-   2. TODO Object spread does not type check - https://github.com/google/closure-compiler/issues/3132
-2. try `goog.require`, `goog.import`
-3. How to import libraries?
-4. pollyfills
-5. Read again and discuss all compiler flags
-6. Read all wiki pages (71) https://github.com/google/closure-compiler/wiki
-7. Read community https://developers.google.com/closure/compiler/community
+If you need hardcore minification, use GCC as a webpack plugin to minify the code. Be careful however about **externs** (for server calls, web worker, exported/imported lib API).
+
+## Problems with syntax:
+1. **If GC project is not in strict mode**, union types, Element type, HTMLElement type, any type work very differently from TS behavior. Also parts of code may be untyped, that is allowed. This would make conversion very difficult.
+2. If the project uses GCC old module syntax (`goog.provide`, `goog.require`) this would be difficult to transform into import / export. It would have to be done manually file by file. Because this syntax basically works with global namespaces.
+3. If the project uses GCC new module syntax (`goog.module`, `goog.require`) this is similar to ESM so this could be relatively easy to convert into ESM, if there is a code-mod for that!
+
+## Plan of action
+1. Use a codemod (e.g. [this from Google](https://github.com/angular/clutz#gents---closure-to-typescript-converter)) to convert import statements to ESM
+2. Switch out webpack + TS for GCC, the code will produce 1000s of errors, especially if it was not in strict mode, make an error snapshot.
+3. Analyze bundle size, if it is much larger, use more hard-core minification (e.g. GCC as webpack plugin). This might be difficult to set up (with externs).
+4. Gradually fix files and convert JS to TS files. This is possible. Always run a new error snapshot and diff. Commit only when the diff has less errors.
+5. Finally when error snapshot is empty, your work here is done.
+
+## Related works
+- [Here is a story of some company that tried it](https://quip.com/blog/the-road-to-typescript-at-quip-part-one)
 
 
-## TODO details
+
+
+# TODO 2
+1. Read again and discuss all compiler flags
+2. Read all wiki pages (71) https://github.com/google/closure-compiler/wiki
+3. Read community https://developers.google.com/closure/compiler/community
+4. Read Discuss
+5. How does tree shaking when importing with ESM/CJS libraries?
+6. Node.js support - Importing stdlib in node.js is [not supported](https://github.com/google/closure-compiler/issues/3719), you have to do a big workaround (fake node_modules basically). Try it?
+
+## TODO 3 - details
 1. Ultra special types https://github.com/google/closure-compiler/wiki/Special-types-in-the-Closure-Type-System
 4. it looks like + can be used on anything (it calls .toString()) e.g. Promise.resolve() + 7
-2 using obejct as a map is a problem https://github.com/google/closure-compiler/wiki/Conformance:-Sources-of-%22unknown%22#using-an-object-as-a-map
+2 using object as a map is a problem https://github.com/google/closure-compiler/wiki/Conformance:-Sources-of-%22unknown%22#using-an-object-as-a-map
 1. do generics have to be declared explicitly? https://github.com/google/closure-compiler/wiki/Conformance:-Sources-of-%22unknown%22#unspecified-generic-types 
+1. memory leak 1 https://github.com/google/closure-compiler/issues/2689

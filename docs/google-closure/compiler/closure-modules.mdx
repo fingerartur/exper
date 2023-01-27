@@ -1,0 +1,49 @@
+---
+sidebar_position: 1
+---
+
+import { Fail } from '@site/src/components/fail.js'
+import { Todo } from '@site/src/components/todo.js'
+import { Improve } from '@site/src/components/improve.js'
+import { Stars } from '@site/src/components/stars.js'
+
+# Closure module system
+Closure has it's own module system, which is tragically not very well documented. The documentation is [here](https://github.com/google/closure-compiler/wiki/JS-Modules) and [here](https://github.com/google/closure-library/wiki/goog.module:-an-ES6-module-like-alternative-to-goog.provide). There is an old and new syntax.
+
+In order to enable them to work, add compiler flags:
+```bash
+--js='base.js' \ # Downloaded from https://raw.githubusercontent.com/google/closure-library/master/closure/goog/base.js
+--hide_warnings_for='base.js' \
+```
+
+
+## Old syntax
+Old syntax is `goog.provide` and `goog.require`. It basically works with globally declared code / namespaces, and adds a way to show which file depends on what.
+
+```js
+// ./src/js/index.js
+goog.require('app.utils');
+
+console.log('add 1,2', app.utils.add(1, 2));
+```
+
+```js
+// ./src/js/utils.js
+goog.provide('app.utils') // This raises ERROR - [JSC_UNDEFINED_VARIABLE] variable goog is undeclared
+
+app.utils = {
+  /**
+   * @param {number} a 
+   * @param {number} b 
+   * @returns {number}
+   */
+  add: (a, b) => a + b,
+}
+```
+
+[REPORTED lack of doc](https://github.com/google/closure-compiler/issues/4048)
+
+## New System
+New syntax is `goog.module` and `goog.require`, which looks promising, because it is encapsulated like CJS or ESM.
+
+[REPORTED lack of doc](https://github.com/google/closure-compiler/issues/4049)

@@ -1,0 +1,242 @@
+import { Fail } from '@site/src/components/fail.js'
+import { Todo } from '@site/src/components/todo.js'
+import { Improve } from '@site/src/components/improve.js'
+import { Stars } from '@site/src/components/stars.js'
+
+# Using CJS, UMD Libraries
+Let's begin with a general introduction: CJS libraries are typically downloaded from NPM into `node_modules`. They typically have multiple dependencies (automatically downloaded by Yarn/NPM). They come with a `package.json`.
+
+CJS is a format that must be loaded in a specific way - it uses `module.exports` and `exports` magic words. UMD is a more universal library definition format, which acts as CJS and if CJS support is not available it can also act as a few other formats.
+
+**GCC's support of CJS is a tragedy.**
+
+## Case studies
+
+### Case study - Lodash (CJS)
+I can import lodash with `--compilation_level=SIMPLE` I use the following extra compiler flags
+
+```
+--compilation_level=SIMPLE \
+--process_common_js_modules=true \
+--module_resolution=NODE \
+--js=node_modules/lodash/package.json \
+--js=node_modules/lodash/**.js \
+--hide_warnings_for=node_modules \
+```
+
+The code looks like this:
+```js
+/**
+* @typedef {{
+*  _ : {
+*      add: function(number, number): number
+*    },
+* }}
+*/
+var Lodash;
+
+const lodashFile = /** @type {Lodash} */ (require('lodash'))
+const lodash = lodashFile._
+const result = lodash.add(1, 2);
+```
+
+### Case study - array-flatten
+The [array-flatten](https://www.npmjs.com/package/array-flatten) lib, works fine.
+
+Flags:
+
+```
+--compilation_level=ADVANCED \
+--process_common_js_modules=true \
+--module_resolution=NODE \
+--js=node_modules/array-flatten/package.json \
+--js=node_modules/array-flatten/**.js \
+--hide_warnings_for=node_modules \
+```
+
+```js
+/**
+* @typedef {{ flatten: function(Array): Array}}
+*/
+var ArrayFlatten;
+
+const arrayFlat = /** @type {ArrayFlatten} */ (require('array-flatten'))
+console.log('arrayFlat: ', arrayFlat.flatten([1,2,3,4, [5,6,7]]));
+```
+
+Because I am using ADVANCED mode, the code of array-flatten library gets mangled up.
+
+From this code in `node_modules`:
+```js
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+/**
+ * Flatten an array indefinitely.
+ */
+function flatten(array) {
+    var result = [];
+    $flatten(array, result);
+    return result;
+}
+exports.flatten = flatten;
+/**
+ * Internal flatten function recursively passes `result`.
+ */
+function $flatten(array, result) {
+    for (var i = 0; i < array.length; i++) {
+        var value = array[i];
+        if (Array.isArray(value)) {
+            $flatten(value, result);
+        }
+        else {
+            result.push(value);
+        }
+    }
+}
+//# sourceMappingURL=index.js.map
+```
+It is mangle into this form:
+```js
+function c(d,e){for(var a=0;a<d.length;a++){var b=d[a];Array.isArray(b)?c(b,e):e.push(b)}};
+```
+
+## Problems
+
+### Documentation is not centralized
+[Documentation is spread out over many sites](./using-libraries) it is never full, it is very hard to orient.
+
+### It is not well documented how to import CJS from node_modules
+By trial and error I came to the conclusion that I need at least the following compiler flags:
+
+```
+--process_common_js_modules=true \
+--module_resolution=NODE \
+--js=node_modules/lodash/package.json \
+--js=node_modules/lodash/**.js \
+--hide_warnings_for=node_modules \
+```
+
+This is a complicated setup and should be better documented.
+
+[Related #](https://github.com/google/closure-compiler/issues/3714)
+
+### Advanced compilation mode breaks `Lodash` and likely many other libs
+GCC's advanced optimization breaks `lodash`. By that I mean compilation is successful, and they I get this runtime error when I try to use lodash:
+
+```
+Uncaught TypeError: Cannot set properties of undefined (setting 'placeholder')
+```
+
+The minification broke the code. If it broke `lodash`, imagine how many other libs it will break as well.
+
+A solution would be a compiler flag to disable optimizations for `node_modules`, but that does not exist as far as I know.
+
+### Not all CJS libraries are supported
+GCC CJS support is bugged. There is a specific CJS format that does not work.
+
+Example of this format is the [merge library](https://www.npmjs.com/package/merge). Its code begins like this
+
+```js
+// "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.isPlainObject = exports.clone = exports.recursive = exports.merge = exports.main = void 0;
+module.exports = exports = main;
+function main() { /** ... */ }
+```
+This raises the following errors:
+
+```
+node_modules/merge/lib/src/index.js:4:17: ERROR - [JSC_UNDEFINED_VARIABLE] variable exports is undeclared
+  4| module.exports = exports = main;
+```
+
+It should not raise this error, and it should get imported as per CJS standard. (Btw Webpack can import this library without a problem.)
+
+The error message itself is a nonsense, because variable `exports` is definitely declared / built-in when dealing with CJS.
+
+As a proof of this consider another library [array-flatten](https://www.npmjs.com/package/array-flatten), whose code begins like this:
+
+```js
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.flatten = flatten;
+function flatten(array) { /** ... */ }
+```
+
+If `exports` was indeed not declared `exports.flatten` should raise an error, but it does not. It work as expected.
+
+[Here is the documentation of CJS, and it says that the export variable must be supported by the module engine.](https://nodejs.org/api/modules.html#exports-shortcut).
+
+### It is difficult to add all dependencies to compilation
+GCC needs all files and all files from node_modules to be supplied via `--js` flag. It also needs all `package.json` files from node_modules to be supplied via `--js` as well.
+
+#### It is not always possible to simply pass all node_modules to --js flag
+Ideally, I want to use these compiler flags:
+
+```
+--dependency_mode=PRUNE \
+--process_common_js_modules=true \
+--module_resolution=NODE \
+--js=node_modules/**/package.json \
+--js=node_modules/**.js \
+--hide_warnings_for=node_modules \
+```
+
+These are all supported GCC flags and in a nutshell that instruct the compiler to look for library code in node_modules, only compile and include the library files that are used by my code, hide any type warnings when processing node_modules and support CJS.
+
+However, if I install `webpack`, which is quite common, then my `node_modules` contain `@webassemblyjs`. Now the interesting part: GCC for some reason processes files from `node_modules/@webassemblyjs` - this is the first mystery, because I am **not using them by my code at all**.
+
+```
+node_modules/@webassemblyjs/helper-numbers/src/index.js:7:37: ERROR - [JSC_PARSE_ERROR] Parse error. ',' expected
+
+node_modules/@webassemblyjs/ieee754/src/index.js:21:27: ERROR - [JSC_PARSE_ERROR] Parse error. ',' expected
+```
+
+Ideally GCC should not touch `node_modules/@webassemblyjs` at all, that is the main concern here.
+
+
+#### closure-calculate-chunks script sucks
+As an alternative to wildcarding the whole node_modules, GC authors made a script that lists all files/libs [closure-calculate-chunks](https://www.npmjs.com/package/closure-calculate-chunks). It is works but it needs a few improvements to be usable for CJS.
+
+1. First problem is that it lists the `.js` files, but not the `package.json` files so you have to add them anyway.
+2. Second it gives absolute paths instead of relative paths, so it can be used a single person but not by a team.
+3. Third, and this is a big thing - if you want to use this script, that means every time you add/remove/update a library you have to run this script and change your build command (add the result of this script to the build command.) And again the script is not ready for that.
+
+### It is not possible to ignore errors that occur in `node_modules` code
+There is a flag to ignore compilation warnings, but not compilation errors!
+```
+--hide_warnings_for=node_modules
+```
+If library code contains errors, then compilation fails and there is nothing anybody can do about than.
+
+
+### Does not work with react and redux
+React and Redux are actually pretty strange in [that their code contains conditions checking if it is production or development build.](https://github.com/reduxjs/redux-devtools/issues/162#issuecomment-149250450) Such as:
+
+```js
+if (process.env.NODE_ENV !== 'production') {
+  ...
+}
+```
+
+This, however is not very smart because it only works when the bundler substitutes `process.env.NODE_ENV`. One way to make it work is to use `Webpack` with `DefinePlugin`.
+
+GCC does not support substitutions like this, so react / redux will not work.
+
+
+
+# TODO report
+- this page https://github.com/google/closure-compiler/wiki/Externs-For-Common-Libraries many links do not work
+  - https://github.com/firebase/firebase-js-sdk/tree/master/packages/firebase/externs
+  - https://github.com/steida/react-externs
+  - https://github.com/steida/react-externs/blob/master/externs.js
+  - https://github.com/google/closure-compiler/tree/master/contrib/externs/youtubeplayer.js
+- FAQ https://github.com/google/closure-compiler/wiki/FAQ#how-do-i-write-an-externs-file does not actually describe how to create an externs file, especially not for a CJS library
+- Documentation of externs is spread across 4 pages (see #Doc)
+- what is the difference between [NODE resolution mode and WEBPACK](https://github.com/google/closure-compiler/wiki/Flags-and-Options#js-modules)?
+- The doc is not consolidate, lacks info, something is from stackoverflow.
+   1. https://blogs.missouristate.edu/web/2013/09/12/how-to-write-closure-compiler-extern-files-part-1-the-basics/ should be on wiki
+   2. https://github.com/google/closure-compiler/wiki/JS-Modules should have a concrete example in it!
+   3. https://stackoverflow.com/questions/41832896/google-closure-compiler-process-node-modules Should be on wiki.
+- window lib is not available on window See above
+

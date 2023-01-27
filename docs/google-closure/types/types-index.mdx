@@ -370,6 +370,9 @@ In short DOM type checking only starts to work correctly when `strictCheckTypes`
 ### Map type-check sucks
 `Map.get()` is wrongly assumed to [never return undefined](./report)
 
+### Array type-check sucks
+`Array.pop()` and `Array.shift()` is wrongly assumed to [never return undefined](./report)
+
 ### Unions are a mess
 Union types are a [big mess](https://github.com/google/closure-compiler/wiki/Types-in-the-Closure-Type-System#union-types). Basically they work same as set union, so instead of representing a multiple different types like in Typescript, the union type represents a single new type that has all the properties of the sub-types on it.
 
@@ -523,8 +526,8 @@ const [x, ...rest] = [1,2,3,4,5,6] // GCC understands that `rest` is Array<numbe
 ### Lack of Type Utilities
 Sadly the type system lacks Type Utilities (such as `ReturnType`, `Omit`, etc. see [TS type utilities](https://www.typescriptlang.org/docs/handbook/utility-types.html)). This leads to a lot more boilerplate.
 
-
-
+### Externs do not support ES6
+Externs do not support ES6 class syntax!
 
 
 
