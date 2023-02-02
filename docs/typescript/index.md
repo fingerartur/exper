@@ -108,7 +108,7 @@ Also no, you can use webpack for typescript no problem `ts-loader`
 
 
 
-VYHODY ts vs flow
+# TS vs Flow
 
 - podbarvi a zarve na nepouzitych importech. flow je ani nezvyrazni ... po mergi to chci
 typescript
