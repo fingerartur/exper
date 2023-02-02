@@ -1,0 +1,299 @@
+
+import { Fail } from '@site/src/components/fail.js'
+import { Todo } from '@site/src/components/todo.js'
+import { Improve } from '@site/src/components/improve.js'
+import { Stars } from '@site/src/components/stars.js'
+
+# Strange, wrong and bugged types 
+There are many problems and bugs. Here is a list.
+
+
+## Record type syntax is strange
+Syntax of `@typedef` is [strange](https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler#typedef-type)
+```js
+/** 
+ * @typedef {{
+ *            foo:string,
+ *            bar:number,
+ *            foobar: (number|string)
+ *          }}
+ */
+var Mytype;
+```
+
+## Record Types allow access to undeclared attributes
+Record types allow access to undeclared attributes
+
+```js
+/**
+ * @type {{ name: string }}
+ */
+const x = {
+  name: 'hello',
+}
+
+x.surname = 'xxxx'
+```
+
+*This cannot be fixed with @struct, only with strictMissingProperties flag.*
+
+## 2D array syntax sucks
+2D arrays `T[][]` are not supported, you must use ```Array<Array<T>>``` instead
+
+## No literal types
+GC does not have string/number literal type, such as:
+
+```js
+/**
+ * @type {'apple'} // Produces error, unsupported type
+ */
+const fruit = 'apple'
+```
+
+This leads to a bigger problem, that I cannot use label-based conditions on POJOs, which is a common thing to do in Typescript. Actually you can do it here, but only via type casting.
+
+```js
+/**
+ * @param {{ type: 'orange', height: number } | { type: 'apple', age: number }} fruit
+*/
+function eat(fruit) {
+  if (fruit.type === 'apple') {
+    // ...
+  }
+}
+```
+
+## Generic object type fails
+Generic Objects (e.g. `Object<string, number>`) [do not work](../report)
+
+## typeof is useless
+`typeof` operator does not work as expected. [Apparently you can only use it on a namespace and I do not even know what that means.](https://github.com/google/closure-compiler/wiki/Types-in-the-Closure-Type-System)
+
+## Some, and only some, types are nullable
+**Some type are nullable by default.** This is a fucking joke. More specifically, primitive types are non-nullable and Object-based types are nullable. Let's see examples:
+
+Primitive types are not nullable or undefinable
+```js
+/**
+ * @type {number} // string, boolean
+ */
+const x = null // produces error
+const x = undefined // produces error
+```
+
+Object-based types are nullable (but not undefinable)
+```js
+class Car {}
+/**
+ * @type {Car} // String, Boolean, Object, Array, Promise, Function, Symbol, Set, Map, Node, Element
+ */
+const x = null
+const x = undefined // produces error
+```
+
+**As a result, you should use a ridiculous amount of `!` in your code all the time!**
+
+```js
+class Car {}
+/**
+  * @type {!Car} // ! specifies that type is non-nullable
+  */
+const x = new Car()
+const x = null // produces error
+```
+
+**Record types are not nullable**, which is a good thing.
+  
+*Even though it may be confusing, because they literally describe and object and its attributes.*
+
+```js
+/**
+ * @typedef {{
+ *  id: string,
+ *  name: string
+ * }}
+ */
+var Car;
+
+/**
+ * @type {Car}
+ */
+const car = null; // produces error
+```
+
+## Array/Collection type-check sucks
+- Arrays are [wrongly assumed to never be empty](../report)
+- HTML collection is [wrongly assumed to never be empty](../report)
+
+## Arrays have some problems with type checking
+Array literals are not type checked!
+
+```js
+// GCC does not know this is array of number
+[-1,0,1,2,3,4]
+```
+
+`Array.reduce` is not type checked at all.
+
+
+## DOM type check sucks
+In short DOM type checking only starts to work correctly when `strictCheckTypes` compiler flag is enabled. Then is is pretty fine, not perfect, but fine.
+
+[Read more all the details.](./dom)
+
+## Map type-check sucks
+`Map.get()` is wrongly assumed to [never return undefined](../report)
+
+## Array type-check sucks
+`Array.pop()` and `Array.shift()` is wrongly assumed to [never return undefined](../report)
+
+## Array type-check sucks on generics
+`Array<string|number>` can be assigned to `Array<string>`. This is obviously very wrong. [They make up excuses on why they allowed it.](https://github.com/google/closure-compiler/wiki/Typechecking-Pitfalls)
+
+## Unions are a mess
+Union types are a [big mess](https://github.com/google/closure-compiler/wiki/Types-in-the-Closure-Type-System#union-types). Basically they work same as set union, so instead of representing a multiple different types like in Typescript, the union type represents a single new type that has all the properties of the sub-types on it.
+
+**Union types therefore allow many invalid things to happen.** As a rule of thumb, always cast your values to a specific type first and them work with them.
+
+```js
+/**
+ * @type {string|number}
+*/
+let text1 = 555
+const len = text1.length 
+
+/**
+ * @type {string|Array<string>}
+*/
+let arg = 'hello'
+arg.filter(Boolean)
+```
+
+As an added bonus to add to all the mess, [union types sometimes convert attributes to unknown (?)](.report) type. As in this example:
+
+```js
+/**
+ * @typedef {{ name: string} | {age: number, name: string}}
+ */
+var Car;
+
+/**
+ * @type {Car}
+ */
+const car = { name: 'BMW'}
+car.age.toUpperCase() // should error, because car.age is a number
+```
+
+## No arrow function types allowed
+Arrow function types are not supported, to type a callback use `function` syntax
+
+```js
+/**
+ * Supported:
+* @type {function(string): string}
+*/
+let pasteText = text => text
+
+/**
+ * Not supported:
+* @type {string => string}
+* @type {(x: string) => string}
+*/
+```
+
+## No union of callbacks or function overloading types allowed
+Union of callback types is not supported. This means that **function/method overloading is not supported** either.
+
+```js
+/**
+ * @type {function(string): string|function(number): number} // is equivalent to @type {function(?): ?}
+*/
+let cutText = function(text) {
+  return text
+}
+
+/**
+ * @type {number}
+*/
+const value = cutText(new Date()) // No error is produced neither left nor right
+```
+
+### Promises are not type-checked well
+[Read about it here](https://github.com/google/closure-compiler/issues/4040)
+
+```js
+/**
+ * @type {Promise<string>}
+ */
+const p = Promise.resolve() // should raise error, it resolves to undefined, not string
+```
+
+```js
+/**
+ * @type {Promise<string>}
+ */
+const p = Promise.resolve().then(function() { return 555 }) // should raise error, it resolves to number, not string
+```
+
+```js
+/**
+ * @type {Promise<string>}
+ */
+const p = new Promise((resolve, reject) => {
+  resolve(666) // should raise error, it resolves to number, not string
+})
+```
+
+```js
+/**
+ * @type {Promise<number>} // should raise error, it resolves to string, not number
+ */
+const p = new Promise(
+  /**
+   * @param {function(string): void} resolve 
+   * @param {function(string): void} reject 
+   */
+  (resolve, reject) => {
+    resolve('Hello')
+  }
+)
+```
+
+## Typedefs fail with recursion without warning
+Typedefs (or *record types*) do not support recursion but instead of error, the recursive attribute [just gets converted to `?` type](../report).
+
+## Visibility checks fail
+Class methods and attributes can be marked `@private`, `@protected`, but works a bit strange. In addition to working as expected, the private/protected attributes and methods can also be **accessed anywhere within the file where the class is defined.**
+
+```js
+export class Car {
+  constructor() {
+    /**
+     * @private
+     */
+    this.color = 'red';
+  }
+}
+
+const car = new Car().color = 'blue' // ok. It is in the same file
+```
+
+## Spread/rest operators work only half the time
+[Object spread](https://github.com/google/closure-compiler/issues/3132) and [object rest](https://github.com/google/closure-compiler/issues/4042) operators do not get type-checked correctly.
+
+**Luckily at least rest params and array rest are type checked as they should.**
+```js
+/**
+ * @param {...number} args 
+ */
+function sum(...args) {
+  return args
+}
+```
+```js
+/**
+ * @type {Array<number>}
+ */
+const arr = [1,2,3,4,5,6]
+const [x, ...rest] = [1,2,3,4,5,6] // GCC understands that `rest` is Array<number>
+```

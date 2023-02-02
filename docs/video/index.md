@@ -38,7 +38,7 @@ ABR streaming protocols are not supported in HTML5. The only thing that is suppo
 In a nutshell EME and MSE are APIs that allow me to implement ABR, or any other crazy type of custom streaming I want.
 
 ### MSE
-[MSE is a HTML5 API](./mse) that allows me to control how video data is buffered. This can be used to do crazy stuff like video stitching in JS or even generated video.
+[MSE is a HTML5 API that allows me to control how video data is buffered.](./mse) This can be used to do crazy stuff like video stitching in JS or even generated video.
 
 ### EME
 EME

@@ -9,8 +9,8 @@ Libraries are used via externs. Externs may define types, but they most importan
 GCC works well with window libraries (that are not part of compilation). But trying to use CJS libraries from `node_modules` is a terrible mess that ultimately works only if you are very lucky.
 
 ## Docs
-- [official - advanced compilation and externs](https://developers.google.com/closure/compiler/docs/) - general idea
-- [official - externs](https://developers.google.com/closure/compiler/docs/externs-and-exports) - general idea, [how to define them](https://developers.google.com/closure/compiler/docs/externs-and-exports#externs)
+- [official - advanced compilation and externs](https://developers.google.com/closure/compiler/docs/api-tutorial3) - general idea of externs
+- [official - externs](https://developers.google.com/closure/compiler/docs/externs-and-exports) - general idea of externs, [how to define them](https://developers.google.com/closure/compiler/docs/externs-and-exports#externs)
 - [@externs annotation](https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler#externs)
 - [advanced notes on externs](https://github.com/google/closure-compiler/wiki/How-do-I-make-closure-compiler-stop-breaking-my-API-by-removing-and-renaming-things%3F) - good explanation of when externs are needed. It mentions that server calls, web workers need externs. It mentions that externs do not need to be imported (they are global). It shows example of how to do externs for web worker
 - [advanced externs syntax](https://blogs.missouristate.edu/web/2013/09/12/how-to-write-closure-compiler-extern-files-part-1-the-basics/)
@@ -67,8 +67,6 @@ Here is an interesting caveat, even though your `greet` namespace is global and 
 window.greet.many() // raises error
 // WARNING - [JSC_INEXISTENT_PROPERTY] Property greet never defined on Window
 ```
-
-<Todo>report this. At least it should be documented, because this is a nonsense situation. The library is literally defined on window, externs are global, etc window access does not work</Todo>
 
 ## Using CJS, UMD(CJS)
 [GCC claims to support CJS and UMD modules](https://github.com/google/closure-compiler/wiki/JS-Modules#commonjs-modules) however it does not work on so many levels that I will have to [dedicate a whole chapter to it](./using-cjs-libraries).

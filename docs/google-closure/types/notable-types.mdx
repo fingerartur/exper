@@ -1,0 +1,217 @@
+
+import { Fail } from '@site/src/components/fail.js'
+import { Todo } from '@site/src/components/todo.js'
+import { Improve } from '@site/src/components/improve.js'
+import { Stars } from '@site/src/components/stars.js'
+
+# Noteworthy types
+Here are some noteworthy things about the type system, syntax and semantics.
+
+## Types are optional
+It is an **optional type system**, params, variables, anything can be untyped. GCC will either infer the type or use `?` aka `unknown` type.
+
+## Suppressing
+You can [suppress](https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler#suppress-warninggroup1warninggroup2) errors and warnings, but sadly you cannot suppress all at a line/file. You have to be specific.
+
+It is pretty complicated to suppress and error. GCC gives you error codes, but you cannot suppress them, you have to find an error group that contains this code and suppress the group instead. [Here is a list of all the error groups](https://github.com/google/closure-compiler/wiki/@suppress-annotations).
+
+## Any
+There two different `any` types - **unknown (?)** and **all (*)**. Unlike typescript `any`, the represent something like the union of all possible types. **[Read more](./any-type)**.
+
+## Extra properties allowed
+Types **allow extra properties** (unlike in Typescript)
+
+```js
+/**
+ * @typedef {{ name: string, year: number }}
+ */
+var Car;
+
+/**
+ * @type {Car}
+ */
+const car = {
+  name: 'BMW',
+  year: 2019,
+  manufactureDate: new Date(), // no error
+}
+```
+
+## Recursive types
+To define recursive POJO types, use `@record`
+
+```js
+/**
+* @record
+*/
+function MyNode() {}
+/**
+* @type {MyNode|null}
+*/
+MyNode.prototype.next;
+
+/**
+* @type {MyNode}
+*/
+const node = {
+  next: {
+    next: {
+      next: null,
+    },
+  }
+}
+```
+
+
+## Interfaces
+
+Old syntax
+
+```js
+/** @interface */
+function ISerializable() {};
+/** @type {function(): string} */
+ISerializable.prototype.serialize;
+/** @type {function(string): *} */
+ISerializable.prototype.deserialize;
+
+/**
+* @implements {ISerializable}
+* @constructor
+*/
+function Car() {}
+Car.prototype.serialize = function() { return 555 }; // produces error, wrong return type
+/**
+* @param {boolean} ok
+*/
+Car.prototype.deserialize = function(ok) { }; // produces error wrong param type
+```
+
+New syntax
+
+```js
+/**
+ * @interface
+ */
+class ISerializable {
+  constructor() {
+    /** @type {string} */
+    this.id;
+  }
+  
+  /**
+   * @returns {string}
+   */
+  serialize() {}
+}
+
+/**
+ * @implements {ISerializable}
+ */
+class Car {
+  constructor() {
+    this.id = 'FJS904328JS';
+  }
+
+  serialize() {
+    return '{ "id": "FJS904328JS"}'
+  }
+}
+
+```
+
+**Careful**, there is a bug, if you never call `return` in a method, then return value is [**not checked**](../report).
+
+It is possible to use **`@record`**, which behaves like a Typescript `interface` and does not need the corresponding `@implements`, but `@interface` is preferred, because [`@interface` produces better code optimization](https://github.com/google/closure-compiler/wiki/Structural-Interfaces-in-Closure-Compiler#use-of-interface-is-preferred-to-record-when-possible).
+
+
+## Nullable types
+Explicitly **Nullable** types have syntax `?number`, **undefinable types do not exist**.
+
+*Sadly this syntax is exactly the opposite of Typescript where `?number` means that it is undefinable and nullable types do not exist.*
+
+## Undefinable params
+**Undefinable params** have this syntax `@param {string=} text`.
+
+To have both nullable and undefinable use `@param {?string=} text`
+
+## Optional properties
+If you want to **leave out** some properties of an object (e.g. when passing config), the syntax is the following
+
+```js
+/**
+ * @type {{
+ *  bandwidth: (string|undefined)
+ * }}
+ */
+const config = {}
+```
+
+## Untyped variables
+**Untyped variables** are type checked but they have [**dynamic type**](https://github.com/google/closure-compiler/wiki/Types-in-the-Closure-Type-System#declared-versus-inferred-types). GCC infers the type correctly, but you can change it.
+```js
+let x = 111 // GCC know it is number
+x = 'hello' // GCC know it is string
+```
+
+## Read-only attributes
+Read-only attributes
+
+```js
+class Car {
+  constructor() {
+    /**
+     * @const
+    */
+    this.name = 'Car';
+  }
+}
+
+new Car().name = 'car 2' // produces error
+```
+
+## Object type
+**`Object`** type represents union of all Object-based types (Function, Array, Map, Set, Element, etc.). It is similar to `*` if you subtract primitive types from it (number, string, etc).
+
+## Safe old-style classes
+If you are using old-style class syntax, make sure to use [`@struct`](https://github.com/google/closure-compiler/wiki/@struct-and-@dict-Annotations) to add some extra type safety. It makes sure you do not define additional attributes on the fly.
+
+New-style class syntax is type safe by default.
+
+```js
+/**
+ * @constructor
+ */
+function Car() {}
+
+new Car().name = 'Tesla';
+```
+
+```js
+/**
+ * @constructor
+ * @struct
+ */
+function Car() {}
+
+new Car().name = 'Tesla'; // produces error
+```
+
+## Try catch
+[Type-checking catch is straight forward](https://github.com/google/closure-compiler/wiki/Annotating-Types#catch-declarations). If you know the type:
+
+```js
+try {
+  parseFloat('hello')
+} catch (/** @type {Error} */ error) {
+  console.error(error.message)
+}
+```
+If you don't know the type:
+```js
+try {
+  parseFloat('hello')
+} catch (/** @type {*} */ error) {
+  console.error(error)
+}
+```

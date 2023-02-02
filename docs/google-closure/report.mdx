@@ -18,6 +18,7 @@ java -jar ./scripts/closureCompiler.jar \
   --jscomp_error=strictCheckTypes;
 ```
 
+
 1. [REPORTED](https://github.com/google/closure-compiler/issues/4023) Generic Objects [should](https://github.com/google/closure-compiler/wiki/Types-in-the-Closure-Type-System) be supported but does not work (e.g. `Object<string, number>`)
   ```js
   /**
@@ -191,25 +192,24 @@ https://github.com/google/closure-compiler/wiki/@suppress-annotations
 25. [REPORTED](https://github.com/google/closure-compiler/issues/4048) goog.provide needs base.js
 26. [REPORTED](https://github.com/google/closure-compiler/issues/4049) goog.module needs base.js
 27. [REPORTED](https://github.com/google/closure-compiler/issues/4051) undocumented ES2021, ES2022 features
-
-
-# TODO to report
-28. Some compiler flags are a mess
+28. [REPORTED](https://github.com/google/closure-compiler/issues/4053) some compiler flags are a mess
     1. compilation_level - what is bundle? rest can be googled. link to explanation
     2. env - CUSTOM means what?
     3. externs - should be deprecated
-    4. js - not javascript filename but javascript input file(s), explain how glob works, don't just say minimatch. Explain that node_modules have to be included as well
-    5. warning_level - the default is default ... what does that mean?
-    6. export_local_property_definitions, generate_exports should be deprecated?
-    7. dependency_mode PRUNE does not work for node_modules, If I don't use any code from a node module it still gets parsed and `validated` by GCC and if it is invalid, it kills the whole compilation. This is the reason why node_modules/**.js just does not work as a simple way to do build script
-    8. --process_common_js_modules should be on by default, unless it is experimental, in which case it should be marked as experimental
-    9. module_resolution - what is BROWSER_WITH_TRANSFORMED_PREFIXES? what is the difference between node and webpack. why I must use NODE in order to be able to import from node_modules? or it should be mentioned that i need to do that.
-    10. force_inject_library - base means Google closure base.js? it is not obvious
-    11. source_map_input,source_map_location_mapping - what is the difference between em
-    12. third_party - what style rules?
+    4. warning_level - the default is default ... what does that mean?
+    6. --process_common_js_modules should be on by default, unless it is experimental, in which case it should be marked as experimental
+    7. module_resolution - what is BROWSER_WITH_TRANSFORMED_PREFIXES? what is the difference between node and webpack. why I must use NODE in order to be able to import from node_modules? or it should be mentioned that i need to do that.
+    8.  force_inject_library - base means Google closure base.js? it is not obvious
+    9.  source_map_input,source_map_location_mapping - what is the difference between em
+    10. third_party - what style rules?
+    11. js - not javascript filename but javascript input file(s), explain how glob works, don't just say minimatch. Explain that node_modules have to be included as well
 
 
+# TODO to report
+Extra
+ 5. dependency_mode PRUNE does not work for node_modules, If I don't use any code from a node module it still gets parsed and `validated` by GCC and if it is invalid, it kills the whole compilation. This is the reason why node_modules/**.js just does not work as a simple way to do build script
+6. TODO about CJS https://github.com/google/closure-compiler/issues/3714
 
-    
-## Existing issues
+
+## Already reported issues
 1. `!Type` behavior should be configurable - https://github.com/google/closure-compiler/issues/641

@@ -131,6 +131,8 @@ The minification broke the code. If it broke `lodash`, imagine how many other li
 
 A solution would be a compiler flag to disable optimizations for `node_modules`, but that does not exist as far as I know.
 
+[REPORTED](https://github.com/google/closure-compiler/issues/4055)
+
 ### Not all CJS libraries are supported
 GCC CJS support is bugged. There is a specific CJS format that does not work.
 
@@ -167,8 +169,11 @@ If `exports` was indeed not declared `exports.flatten` should raise an error, bu
 
 [Here is the documentation of CJS, and it says that the export variable must be supported by the module engine.](https://nodejs.org/api/modules.html#exports-shortcut).
 
+[REPORTED](https://github.com/google/closure-compiler/issues/4056)
+
 ### It is difficult to add all dependencies to compilation
 GCC needs all files and all files from node_modules to be supplied via `--js` flag. It also needs all `package.json` files from node_modules to be supplied via `--js` as well.
+
 
 #### It is not always possible to simply pass all node_modules to --js flag
 Ideally, I want to use these compiler flags:
@@ -223,20 +228,43 @@ This, however is not very smart because it only works when the bundler substitut
 
 GCC does not support substitutions like this, so react / redux will not work.
 
-
+- the fact that node_modules libs are compiled sucks a lot. I have no way of making sure that the libs do not break GCC assumptions
 
 # TODO report
-- this page https://github.com/google/closure-compiler/wiki/Externs-For-Common-Libraries many links do not work
-  - https://github.com/firebase/firebase-js-sdk/tree/master/packages/firebase/externs
-  - https://github.com/steida/react-externs
-  - https://github.com/steida/react-externs/blob/master/externs.js
-  - https://github.com/google/closure-compiler/tree/master/contrib/externs/youtubeplayer.js
 - FAQ https://github.com/google/closure-compiler/wiki/FAQ#how-do-i-write-an-externs-file does not actually describe how to create an externs file, especially not for a CJS library
 - Documentation of externs is spread across 4 pages (see #Doc)
-- what is the difference between [NODE resolution mode and WEBPACK](https://github.com/google/closure-compiler/wiki/Flags-and-Options#js-modules)?
-- The doc is not consolidate, lacks info, something is from stackoverflow.
+  - The doc is not consolidate, lacks info, something is from stackoverflow.
    1. https://blogs.missouristate.edu/web/2013/09/12/how-to-write-closure-compiler-extern-files-part-1-the-basics/ should be on wiki
    2. https://github.com/google/closure-compiler/wiki/JS-Modules should have a concrete example in it!
    3. https://stackoverflow.com/questions/41832896/google-closure-compiler-process-node-modules Should be on wiki.
-- window lib is not available on window See above
 
+
+
+
+
+The compiler processes `node_modules` files unrelated to the compilation even when `--dependency_mode=PRUNE` is set.
+
+Consider a project that imports from `node_modules` with the following compiler flags:
+```
+java -jar ./scripts/closureCompiler.jar \
+  --entry_point=./src/js/index.js \
+  --js=./src/**.js \
+  --warning_level=VERBOSE \
+  --js_output_file=./dist/bundle.js \
+  --compilation_level=ADVANCED \
+  --dependency_mode=PRUNE \
+  --process_common_js_modules=true \
+  --module_resolution=NODE \
+  --js=node_modules/**/package.json \
+  --js=node_modules/**.js \
+  --hide_warnings_for=node_modules;
+```
+Whether passing the whole node_modules to `--js` is recommended or not is not relevant right now.
+
+The problem which happens in this situation is that the Closure compiler seems to processes and parse all the JS files in `node_modules` - even though it shouldn't. `--dependency_mode=PRUNE` is set which means only files referenced from code (transitively referenced from the entry point) should be processed and included in the final bundle.
+
+**If any file in `node_modules` contains some invalid code, the whole compilation will fail.** As an example, if node_modules contains the library `@webassemblyjs/helper-numbers`, Closure compiler parses it - for no obvious reason - and fails. (Note: this library gets auto-installed when you install Webpack).
+
+The Closure compiler should not process files from `node_modules` unrelated to the compilation in any way when `--dependency_mode=PRUNE` is set. It should definitely not process them is such a way that causes the compilation to fail. It is unclear why exactly this happens and how the Closure compiler works under the hood, but in any case, even if the compilation would be successful, processing of unrelated files, especially in node_modules may easily lead to great performance degradation and over-consumption of memory.
+
+Compiler Version: v20230103

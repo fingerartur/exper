@@ -57,52 +57,29 @@ As a workaround I use JSDoc-based Typescript checking plus a bit of `@ts-ignore`
 
 It is better than nothing, but it is not ideal. The type systems are different they raise different sets of errors. One is not a subset of the other. In general Typescript is stronger, especially with respect to type inference. 
 
-<Fail>So with every commit I make, I always have to validate it with GCC and I can expect errors.</Fail>
+<Fail>So with every commit I make, I always have to validate it with GCC and I can expect errors. And there is no watch mode.</Fail>
 
 ## Compiler
 The compiler is trying to do the same job as let's say Webpack with a type checking loader. But Webpack is much superior in all aspects, maybe except minification, but that is not certain.
 
 [Read all about the compiler.](./compiler/index-compiler)
 
-# Trying to convert GC code to JSDOC TS code
-1. [JSDOC TS 1](https://www.typescriptlang.org/docs/handbook/type-checking-javascript-files.html)
-2. [JSDOC TS 2](https://www.typescriptlang.org/docs/handbook/jsdoc-supported-types.html#unsupported-tags)
-JSDOC TS type system is stronger and in general a superset of GCC types system.
-
-## Idea
-Convert GCC code to JSDOC TS and use webpack + ts-loader to build it. Enjoy much better type checking, IDE support (live), less code, more typed libraries, auto generated types. On the webpack side enjoy a world of plugins.
-
-If you need hardcore minification, use GCC as a webpack plugin to minify the code. Be careful however about **externs** (for server calls, web worker, exported/imported lib API).
-
-## Problems with syntax:
-1. **If GC project is not in strict mode**, union types, Element type, HTMLElement type, any type work very differently from TS behavior. Also parts of code may be untyped, that is allowed. This would make conversion very difficult.
-2. If the project uses GCC old module syntax (`goog.provide`, `goog.require`) this would be difficult to transform into import / export. It would have to be done manually file by file. Because this syntax basically works with global namespaces.
-3. If the project uses GCC new module syntax (`goog.module`, `goog.require`) this is similar to ESM so this could be relatively easy to convert into ESM, if there is a code-mod for that!
-
-## Plan of action
-1. Use a codemod (e.g. [this from Google](https://github.com/angular/clutz#gents---closure-to-typescript-converter)) to convert import statements to ESM
-2. Switch out webpack + TS for GCC, the code will produce 1000s of errors, especially if it was not in strict mode, make an error snapshot.
-3. Analyze bundle size, if it is much larger, use more hard-core minification (e.g. GCC as webpack plugin). This might be difficult to set up (with externs).
-4. Gradually fix files and convert JS to TS files. This is possible. Always run a new error snapshot and diff. Commit only when the diff has less errors.
-5. Finally when error snapshot is empty, your work here is done.
-
-## Related works
-- [Here is a story of some company that tried it](https://quip.com/blog/the-road-to-typescript-at-quip-part-one)
+## Migration to Typescript
+[Read more about a strategy how to convert GC code to TS.](./codemod)
 
 
 
+# TODO
+1. Report on using node_modules / CJS.
+2. How to prevent dependency cycles?
+3. How does tree shaking when importing with ESM/CJS libraries?
+4. Node.js support - Importing stdlib in node.js is [not supported](https://github.com/google/closure-compiler/issues/3719), you have to do a big workaround (fake node_modules basically). Try it?
+5. [some reading / examples](https://github.com/google/closure-compiler/wiki/Tutorials)
 
-# TODO 2
-1. Read again and discuss all compiler flags
-2. Read all wiki pages (71) https://github.com/google/closure-compiler/wiki
-3. Read community https://developers.google.com/closure/compiler/community
-4. Read Discuss
-5. How does tree shaking when importing with ESM/CJS libraries?
-6. Node.js support - Importing stdlib in node.js is [not supported](https://github.com/google/closure-compiler/issues/3719), you have to do a big workaround (fake node_modules basically). Try it?
 
-## TODO 3 - details
+## TODO - details
 1. Ultra special types https://github.com/google/closure-compiler/wiki/Special-types-in-the-Closure-Type-System
-4. it looks like + can be used on anything (it calls .toString()) e.g. Promise.resolve() + 7
+2. it looks like + can be used on anything (it calls .toString()) e.g. Promise.resolve() + 7
 2 using object as a map is a problem https://github.com/google/closure-compiler/wiki/Conformance:-Sources-of-%22unknown%22#using-an-object-as-a-map
 1. do generics have to be declared explicitly? https://github.com/google/closure-compiler/wiki/Conformance:-Sources-of-%22unknown%22#unspecified-generic-types 
-1. memory leak 1 https://github.com/google/closure-compiler/issues/2689
+2. memory leak 1 https://github.com/google/closure-compiler/issues/2689

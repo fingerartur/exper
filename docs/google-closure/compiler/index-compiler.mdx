@@ -40,6 +40,8 @@ this allows you to write imports without file extension.
 import { app } from './app' // not app.js
 ```
 
+[Module systems can interop.](https://github.com/google/closure-compiler/wiki/ES6-modules-and-Closure-interop)
+
 
 ## Using libraries
 Using libraries is a headache. [Read all about using libraries here.](./using-libraries)
@@ -127,11 +129,9 @@ The transpilation also automatically adds polyfills (it adds only the necessary 
 <Fail>Here is the list of supported ES features, and it is not complete https://github.com/google/closure-compiler/wiki/Supported-features (REPORTED)</Fail>
 
 ## Cyclic dependencies
-<Fail>GCC allows cyclic dependencies between files and there is not option to prevent them. This is a ticking time bomb. (Webpack has the same problem, but at least there is a plugin to fix that.)</Fail>
+When using GC module system (`goog.provide` / `goog.module`) it is not possible to create a cyclic dependency, the compiler immediately raises error. This is great!
 
-And authors [do not care](https://github.com/google/closure-compiler/issues/1883).
-
-<Todo>how to prevent cycles?</Todo>
+<Fail>However for CJS/ESM modules GCC allows cyclic dependencies between files and there is no option to prevent them. This is a ticking time bomb! (Webpack has the same problem, but at least there is a plugin to fix that.)</Fail>
 
 ## Compiling web workers
 [Using web workers is a pain.](./webworker) The main problems are caused by GCC's aggressive  minification in advanced mode. In a nutshell I have to define **externs** for data sent / received from a web worker.
@@ -139,18 +139,24 @@ And authors [do not care](https://github.com/google/closure-compiler/issues/1883
 ## Compiling server calls
 Due to aggressive minification in advanced mode, [I have to define **externs** for all data sent / received from a server or e.g. from local storage.](https://github.com/google/closure-compiler/wiki/How-do-I-make-closure-compiler-stop-breaking-my-API-by-removing-and-renaming-things%3F#why-is-closure-compiler-breaking-me-by-removing-and-renaming-things)
 
-## Extra semantic checks
-The compiler has a smart feature where it can do more than just type checking, you can configure it to ban any *suspicious* that you like. It is called [JS Conformance](https://github.com/google/closure-compiler/wiki/JS-Conformance-Framework).
-
 ## Code splitting
 [Code splitting is supported.](https://github.com/google/closure-compiler/wiki/Chunk-output-for-dynamic-loading)
-
 
 ## Creating a library
 <Todo>How to create a library</Todo>
 (UMD/CJS/ESM) how?
 https://developers.google.com/closure/compiler/docs/api-tutorial3#extocomp
 
-## Analysis of compiler flags
-<Todo>do it</Todo>
-`--debug` works only in advanced optimization mode. Helps you understand why/how things have been renamed! http://closuretools.blogspot.com/2011/01/property-by-any-other-name-part-1.html
+## Compiler flags
+`--debug` flag works only in advanced optimization mode. [It helps you understand why/how things have been renamed!](http://closuretools.blogspot.com/2011/01/property-by-any-other-name-part-1.html)
+
+## Extra
+- [**There seems to be support for i18n**](https://github.com/google/closure-compiler/wiki/Translations) - As with anything, I would not rely on it until I prove that it works well.
+- [**JS Conformance**](https://github.com/google/closure-compiler/wiki/JS-Conformance-Framework) - The compiler has a smart feature where it can do more than just type checking, you can configure it to ban any *suspicious* code that you like. (e.g. ban all console logs, empty functions)
+- [**ID generators**](https://github.com/google/closure-compiler/wiki/Id-Generator-Annotations) - To create obfuscated HTML IDs. The compiler can generate and ID generator function and inline these IDs at the same time. All you need to do is define a dummy `id()` function and annotate it. I am not sure tho how this can be useful.
+- [**Instrumentation**](https://github.com/google/closure-compiler/wiki/Production-instrumentation) - This is actually about how to get **test coverage** statistics. Google closure library provides some testing support. [Here is a random example of some test.](https://github.com/google/closure-library/blob/master/closure/goog/testing/continuationtestcase_test.js)
+
+## About the design of the compiler
+1. [Design](https://github.com/google/closure-compiler/wiki/Design-Documents)
+2. [High level overview of compilation job](https://github.com/google/closure-compiler/wiki/High-level-overview-of-a-compilation-job)
+3. [How to develop a compiler pass in Java](https://github.com/google/closure-compiler/wiki/Writing-Compiler-Pass)
