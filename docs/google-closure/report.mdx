@@ -180,7 +180,7 @@ const y = typeof _data.somethingMadeUp // ok
 14. [REPORTED](https://github.com/google/closure-compiler/issues/4037) suppressing errors is very difficult because error JSC_STRICT_INEXISTENT_PROPERTY, why do I have to go to suppression list, why does not the CLI tell me the supression group immediately?
 https://github.com/google/closure-compiler/wiki/@suppress-annotations
 15. [REPORTED](https://github.com/google/closure-compiler/issues/4037) There should be a way to suppress all warnings on a line or in one file (like //@ts-ignore and //@ts-nocheck) it is useful
-16. [REPORTED](https://github.com/google/closure-compiler/issues/4038) Everything from [./compiler-flags](./compiler-flags)
+16. [REPORTED](https://github.com/google/closure-compiler/issues/4038) Everything from [./compiler/cli-issues](./compiler/cli-issues)
 17. [REPORTED](https://github.com/google/closure-compiler/issues/4039) Lacking documentation of modern ES6 syntax with interface and implements
 18. @export is [deprecated or best avoided](https://developers.google.com/closure/compiler/docs/externs-and-exports). This should be also mentioned in the wiki, e.g. [here](https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler#export-export-sometyp)
 19. [REPORTED](https://github.com/google/closure-compiler/issues/4040) Type checking of promises does not work
@@ -197,12 +197,12 @@ https://github.com/google/closure-compiler/wiki/@suppress-annotations
     2. env - CUSTOM means what?
     3. externs - should be deprecated
     4. warning_level - the default is default ... what does that mean?
-    6. --process_common_js_modules should be on by default, unless it is experimental, in which case it should be marked as experimental
-    7. module_resolution - what is BROWSER_WITH_TRANSFORMED_PREFIXES? what is the difference between node and webpack. why I must use NODE in order to be able to import from node_modules? or it should be mentioned that i need to do that.
-    8.  force_inject_library - base means Google closure base.js? it is not obvious
-    9.  source_map_input,source_map_location_mapping - what is the difference between em
-    10. third_party - what style rules?
-    11. js - not javascript filename but javascript input file(s), explain how glob works, don't just say minimatch. Explain that node_modules have to be included as well
+    5. --process_common_js_modules should be on by default, unless it is experimental, in which case it should be marked as experimental
+    6. module_resolution - what is BROWSER_WITH_TRANSFORMED_PREFIXES? what is the difference between node and webpack. why I must use NODE in order to be able to import from node_modules? or it should be mentioned that i need to do that.
+    7.  force_inject_library - base means Google closure base.js? it is not obvious
+    8.  source_map_input,source_map_location_mapping - what is the difference between em
+    9.  third_party - what style rules?
+    10. js - not javascript filename but javascript input file(s), explain how glob works, don't just say minimatch. Explain that node_modules have to be included as well
 
 
 # TODO to report
