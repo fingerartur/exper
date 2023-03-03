@@ -8,11 +8,5 @@ const style = {
 }
 
 export function Stars({ srcs }) {
-  return (
-    <div style={style}>
-      {srcs.map(src => {
-        return <SmartImage key={src} src={src} />
-      })} 
-    </div>
-  );
+  return null;
 }

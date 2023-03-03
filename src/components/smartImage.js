@@ -20,7 +20,8 @@ export function SmartImage({ src }) {
   const [state, dispatch] = useReducer(reducer, URI_DEFAULT);
 
   const toggle = () => {
-    const URI_HIDDEN = require(`@site/static/img/hidden/${src}`).default
+    /// const URI_HIDDEN = require(`@site/static/img/hidden/${src}`).default
+    const URI_HIDDEN = ''
     // @ts-ignore
     dispatch({ src: URI_HIDDEN })
   }
