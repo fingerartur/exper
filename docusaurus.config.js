@@ -9,7 +9,7 @@ const config = {
   title: 'Exper',
   tagline: 'Experience, expertise and know how',
   url: 'https://your-docusaurus-test-site.com',
-  baseUrl: '/',
+  baseUrl: '/build/',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
   favicon: 'img/favicon.ico',
