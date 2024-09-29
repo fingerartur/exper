@@ -10,7 +10,7 @@ sidebar_position: 1
 - (transform webportal)
 
 # Looking for a code mod
-There are 3 code mods, [none of them good](./flow-to-ts-code-mods.md). But one can be fixed and tweaked to get what we want https://github.com/fingerartur/flow-to-ts.git
+There are 3 code mods, none of them good. But one can be fixed and tweaked to get what we want https://github.com/fingerartur/flow-to-ts.git
 - the tweak
 ```ts
     // 0 capitals => .ts

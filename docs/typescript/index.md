@@ -96,7 +96,7 @@ Also no, you can use webpack for typescript no problem `ts-loader`
     - flow best practice: type, TS best practice: interface
 - extending a type and intellisense
     - TS: extends +Omit, &, bad hint, intellisense on ctrl+space
-    - flow: ... +exact, &, [bad hint]((https://stackoverflow.com/questions/61851075/typescript-extending-interfaces-and-hover-hints))
+    - flow: ... +exact, &, [bad hint](https://stackoverflow.com/questions/61851075/typescript-extending-interfaces-and-hover-hints)
 - exactness
     - TS good: interfaces/types are exact when instantiating them, otherwise not, react components
     are exact but not when spreading

@@ -5,16 +5,6 @@ sidebar_position: 11
 # Know - index
 Key takeaways about FE software engineering, techs and hacks
 
-* [How to work](./readme_howtowork.md)
-
-## Techs
-* [Git](./readme_git.md)
-* [React](./readme_react.md) redux, reselect
-* [Mobx](./readme_mobx.md) very crude
-* [Cypress](./readme_cypress.md) e2e testing
-* [Graphql](./readme_graphql.md) and Apollo
-* [Webpack](./readme_webpack.md)
-
 
 
 ## CI / (CD)
